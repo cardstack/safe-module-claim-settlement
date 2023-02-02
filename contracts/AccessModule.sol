@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
 
 abstract contract AccessModule is Module {
-    address public config;
     mapping(bytes32 => bool) public used; // "claim" terminology not always appropriate, but this is a record of whether a claim has been used
 
     modifier onlyAvatar() {

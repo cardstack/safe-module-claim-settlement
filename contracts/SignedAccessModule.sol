@@ -13,7 +13,6 @@ contract SignedAccessModule is AccessModule {
         address _owner,
         address _avatar,
         address _target,
-        address _config
     ) {
         bytes memory initParams = abi.encode(_owner, _avatar, _target, _config);
         setUp(initParams);
@@ -24,15 +23,13 @@ contract SignedAccessModule is AccessModule {
             address _owner,
             address _avatar,
             address _target,
-            address _config
-        ) = abi.decode(initParams, (address, address, address, address));
+        ) = abi.decode(initParams, (address, address, address));
         __Ownable_init();
         require(_avatar != address(0), "Avatar can not be zero address");
         require(_target != address(0), "Target can not be zero address");
         keySigner = _owner;
         avatar = _avatar;
         target = _target;
-        config = _config;
 
         transferOwnership(_owner);
     }

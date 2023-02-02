@@ -14,10 +14,6 @@ export const setupTokens = async () => {
   const nft = await Nft.deploy("TestNft", "TestNft");
   return { token, gasToken, nft };
 };
-//Just return zero address
-export const setupConfig = async () => {
-  return AddressZero;
-};
 export const setupAvatar = async () => {
   const [deployer] = await ethers.getSigners();
   const avatarFactory = await ethers.getContractFactory("TestAvatar", {
