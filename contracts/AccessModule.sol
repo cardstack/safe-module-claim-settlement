@@ -4,7 +4,6 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
-import "./interfaces/IConfig.sol";
 
 abstract contract AccessModule is Module {
     address public config;
