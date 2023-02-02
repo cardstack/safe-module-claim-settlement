@@ -21,7 +21,7 @@ describe("claimSettlement", async () => {
     const [deployer, validator, payee1, payee2] = await ethers.getSigners();
     const { token, gasToken, nft } = await setupTokens();
     const { avatar, tx } = await setupAvatar();
-    const ClaimSettlement = await ethers.getContractFactory("claimSettlement", {
+    const ClaimSettlement = await ethers.getContractFactory("ClaimSettlement", {
       signer: deployer,
     });
     const claimSettlement = await ClaimSettlement.deploy(
@@ -165,7 +165,7 @@ describe("claimSettlement", async () => {
       });
       it("cannot transfer if leaf specifieds different module", async () => {
         const SignedAccessModule2 = await ethers.getContractFactory(
-          "claimSettlement",
+          "ClaimSettlement",
           {
             signer: deployer,
           }
