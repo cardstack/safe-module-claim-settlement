@@ -1,5 +1,9 @@
-name: MerkleSpike
-on: [push]
+name: Safe Module Claim Settlement
+on: 
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   tests:
