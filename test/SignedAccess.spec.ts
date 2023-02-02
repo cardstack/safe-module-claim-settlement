@@ -9,7 +9,7 @@ import {
   mine,
 } from "@nomicfoundation/hardhat-network-helpers";
 
-import { setupAvatar, setupConfig, setupTokens } from "./fixtures";
+import { setupAvatar, setupTokens } from "./fixtures";
 import { signMessage, getNativeBalance, gasUsedByTx } from "./utils";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
@@ -21,7 +21,6 @@ describe("SignedAccessModule", async () => {
     const [deployer, validator, payee1, payee2] = await ethers.getSigners();
     const { token, gasToken, nft } = await setupTokens();
     const { avatar, tx } = await setupAvatar();
-    const config = await setupConfig();
     const SignedAccessModule = await ethers.getContractFactory(
       "SignedAccessModule",
       {
@@ -31,8 +30,7 @@ describe("SignedAccessModule", async () => {
     const signedAccessModule = await SignedAccessModule.deploy(
       validator.address,
       avatar.address,
-      avatar.address,
-      config
+      avatar.address
     );
     await avatar.enableModule(signedAccessModule.address);
     await token.mint(avatar.address, mintAmount);
@@ -169,7 +167,6 @@ describe("SignedAccessModule", async () => {
         ).to.be.revertedWith("invalid leaf");
       });
       it("cannot transfer if leaf specifieds different module", async () => {
-        const config = await setupConfig();
         const SignedAccessModule2 = await ethers.getContractFactory(
           "SignedAccessModule",
           {
@@ -179,8 +176,7 @@ describe("SignedAccessModule", async () => {
         const signedAccessModule2 = await SignedAccessModule2.deploy(
           validator.address,
           avatar.address,
-          avatar.address,
-          config
+          avatar.address
         );
         await avatar.enableModule(signedAccessModule2.address);
         const { r, s, v } = await signMessage(leaf, validator);
