@@ -4,9 +4,9 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
-import "./AccessModule.sol";
+import "./ClaimSettlementBase.sol";
 
-contract SignedAccessModule is AccessModule {
+contract ClaimSettlement is ClaimSettlementBase {
     address public keySigner;
 
     constructor(

@@ -14,25 +14,22 @@ import { signMessage, getNativeBalance, gasUsedByTx } from "./utils";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
-describe("SignedAccessModule", async () => {
+describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
   const abiCoder = new ethers.utils.AbiCoder();
   async function setupFixture() {
     const [deployer, validator, payee1, payee2] = await ethers.getSigners();
     const { token, gasToken, nft } = await setupTokens();
     const { avatar, tx } = await setupAvatar();
-    const SignedAccessModule = await ethers.getContractFactory(
-      "SignedAccessModule",
-      {
-        signer: deployer,
-      }
-    );
-    const signedAccessModule = await SignedAccessModule.deploy(
+    const ClaimSettlement = await ethers.getContractFactory("claimSettlement", {
+      signer: deployer,
+    });
+    const claimSettlement = await ClaimSettlement.deploy(
       validator.address,
       avatar.address,
       avatar.address
     );
-    await avatar.enableModule(signedAccessModule.address);
+    await avatar.enableModule(claimSettlement.address);
     await token.mint(avatar.address, mintAmount);
     await gasToken.mint(avatar.address, mintAmount);
     await nft.mint(avatar.address, 1);
@@ -51,7 +48,7 @@ describe("SignedAccessModule", async () => {
       avatar,
       tx,
       modules: {
-        signedAccessModule,
+        claimSettlement,
       },
     };
   }
@@ -60,7 +57,7 @@ describe("SignedAccessModule", async () => {
     let avatar: Contract,
       token: Contract,
       nft: Contract,
-      signedAccessModule: Contract,
+      claimSettlement: Contract,
       deployer: SignerWithAddress,
       payee1: SignerWithAddress,
       payee2: SignerWithAddress,
@@ -76,7 +73,7 @@ describe("SignedAccessModule", async () => {
       avatar = fixture.avatar;
       token = fixture.assets.token;
       nft = fixture.assets.nft;
-      signedAccessModule = fixture.modules.signedAccessModule;
+      claimSettlement = fixture.modules.claimSettlement;
       payee1 = fixture.wallets.payee1;
       payee2 = fixture.wallets.payee2;
       validator = fixture.wallets.validator;
@@ -88,7 +85,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 4],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -105,7 +102,7 @@ describe("SignedAccessModule", async () => {
       it("transfer token", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         expect(await token.balanceOf(payee1.address)).to.equal(0);
-        await signedAccessModule
+        await claimSettlement
           .connect(payee1)
           .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
 
@@ -118,7 +115,7 @@ describe("SignedAccessModule", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         await mine(101);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid leaf");
@@ -126,7 +123,7 @@ describe("SignedAccessModule", async () => {
       it("cannot transfer if wrong signer", async () => {
         const { r, s, v } = await signMessage(leaf, payee1);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid signature");
@@ -135,7 +132,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 1, 4],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -150,25 +147,25 @@ describe("SignedAccessModule", async () => {
         );
         const { r, s, v } = await signMessage(leaf, validator);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid caller");
       });
       it("cannot transfer if leaf is already used", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
-        await signedAccessModule
+        await claimSettlement
           .connect(payee1)
           .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid leaf");
       });
       it("cannot transfer if leaf specifieds different module", async () => {
         const SignedAccessModule2 = await ethers.getContractFactory(
-          "SignedAccessModule",
+          "claimSettlement",
           {
             signer: deployer,
           }
@@ -190,7 +187,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 0, 0, 4],
             abiCoder.encode([], []),
             abiCoder.encode([], []),
@@ -201,7 +198,7 @@ describe("SignedAccessModule", async () => {
           ]
         );
         const { r, s, v } = await signMessage(leaf, validator);
-        signedAccessModule
+        claimSettlement
           .connect(payee1)
           .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
       });
@@ -209,7 +206,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 10, 0, 4],
             abiCoder.encode([], []),
             abiCoder.encode([], []),
@@ -221,7 +218,7 @@ describe("SignedAccessModule", async () => {
         );
         const { r, s, v } = await signMessage(leaf, validator);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid leaf");
@@ -230,7 +227,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 10, 4],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -245,7 +242,7 @@ describe("SignedAccessModule", async () => {
         );
         const { r, s, v } = await signMessage(leaf, validator);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid caller");
@@ -254,7 +251,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 10],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -269,7 +266,7 @@ describe("SignedAccessModule", async () => {
         );
         const { r, s, v } = await signMessage(leaf, validator);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("action failed");
@@ -278,7 +275,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 2, 4],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -293,7 +290,7 @@ describe("SignedAccessModule", async () => {
         );
         const { r, s, v } = await signMessage(leaf, validator);
         await expect(
-          signedAccessModule
+          claimSettlement
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid caller");
@@ -304,7 +301,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 3],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -322,7 +319,7 @@ describe("SignedAccessModule", async () => {
       it("transfer token", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         expect(await token.balanceOf(payee1.address)).to.equal(0);
-        await signedAccessModule
+        await claimSettlement
           .connect(payee1)
           .signedExecute(
             v,
@@ -340,7 +337,7 @@ describe("SignedAccessModule", async () => {
       it("transfer token to another person", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         expect(await token.balanceOf(payee2.address)).to.equal(0);
-        await signedAccessModule
+        await claimSettlement
           .connect(payee1)
           .signedExecute(
             v,
@@ -361,7 +358,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 2],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -384,7 +381,7 @@ describe("SignedAccessModule", async () => {
         expect(await getNativeBalance(avatar.address)).to.equal(transferAmount);
         const { r, s, v } = await signMessage(leaf, validator);
         const initialBalance = await getNativeBalance(payee1.address);
-        const tx = await signedAccessModule
+        const tx = await claimSettlement
           .connect(payee1)
           .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
         const receipt = await tx.wait();
@@ -400,7 +397,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 1],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -419,7 +416,7 @@ describe("SignedAccessModule", async () => {
         expect(await getNativeBalance(avatar.address)).to.equal(transferAmount);
         const { r, s, v } = await signMessage(leaf, validator);
         const initialBalance = await getNativeBalance(payee1.address);
-        const tx = await signedAccessModule
+        const tx = await claimSettlement
           .connect(payee1)
           .signedExecute(
             v,
@@ -444,7 +441,7 @@ describe("SignedAccessModule", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         const initialBalancePayee1 = await getNativeBalance(payee1.address);
         const initialBalancePayee2 = await getNativeBalance(payee2.address);
-        const tx = await signedAccessModule
+        const tx = await claimSettlement
           .connect(payee1)
           .signedExecute(
             v,
@@ -469,7 +466,7 @@ describe("SignedAccessModule", async () => {
         leaf = abiCoder.encode(
           ["address", "bytes4", "bytes", "bytes", "bytes"],
           [
-            signedAccessModule.address,
+            claimSettlement.address,
             [1, 1, 0, 5],
             abiCoder.encode(
               ["address", "uint256", "uint256"],
@@ -486,7 +483,7 @@ describe("SignedAccessModule", async () => {
       it("transfer nft", async () => {
         const { r, s, v } = await signMessage(leaf, validator);
         expect(await nft.ownerOf(1)).to.equal(avatar.address);
-        await signedAccessModule
+        await claimSettlement
           .connect(payee1)
           .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
         expect(await nft.ownerOf(1)).to.equal(payee1.address);
