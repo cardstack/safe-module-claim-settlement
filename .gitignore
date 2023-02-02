@@ -26,3 +26,5 @@ cache
 artifacts
 
 .openzeppelin
+
+.DS_Store
