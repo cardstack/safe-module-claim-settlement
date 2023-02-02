@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 import "hardhat/console.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
