@@ -9,21 +9,16 @@ import "./ClaimSettlementBase.sol";
 contract ClaimSettlement is ClaimSettlementBase {
     address public keySigner;
 
-    constructor(
-        address _owner,
-        address _avatar,
-        address _target,
-    ) {
-        bytes memory initParams = abi.encode(_owner, _avatar, _target, _config);
+    constructor(address _owner, address _avatar, address _target) {
+        bytes memory initParams = abi.encode(_owner, _avatar, _target);
         setUp(initParams);
     }
 
     function setUp(bytes memory initParams) public override initializer {
-        (
-            address _owner,
-            address _avatar,
-            address _target,
-        ) = abi.decode(initParams, (address, address, address));
+        (address _owner, address _avatar, address _target) = abi.decode(
+            initParams,
+            (address, address, address)
+        );
         __Ownable_init();
         require(_avatar != address(0), "Avatar can not be zero address");
         require(_target != address(0), "Target can not be zero address");

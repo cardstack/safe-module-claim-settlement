@@ -79,8 +79,6 @@ abstract contract ClaimSettlementBase is Module {
         address to,
         uint256 tokenId
     ) internal returns (bool) {
-        console.log("solidity");
-        console.log(msg.sender);
         bytes memory execTxData = abi.encodeWithSelector(
             0x23b872dd,
             avatar,
