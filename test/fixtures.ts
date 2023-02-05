@@ -1,4 +1,5 @@
 import { AddressZero } from "@ethersproject/constants";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ethers } from "hardhat";
 
 export const setupTokens = async () => {
@@ -14,10 +15,9 @@ export const setupTokens = async () => {
   const nft = await Nft.deploy("TestNft", "TestNft");
   return { token, gasToken, nft };
 };
-export const setupAvatar = async () => {
-  const [deployer] = await ethers.getSigners();
+export const setupAvatar = async (owner?: SignerWithAddress) => {
   const avatarFactory = await ethers.getContractFactory("TestAvatar", {
-    signer: deployer,
+    signer: owner ?? (await ethers.getSigners())[0],
   });
   const avatar = await avatarFactory.deploy();
   const tx = {
