@@ -13,6 +13,7 @@ import { setupAvatar, setupTokens } from "./fixtures";
 import { signMessage, getNativeBalance, gasUsedByTx } from "./utils";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { AddressZero } from "@ethersproject/constants";
 
 describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
@@ -294,6 +295,50 @@ describe("claimSettlement", async () => {
             .connect(payee1)
             .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
         ).to.be.revertedWith("invalid caller");
+      });
+      it("transfer to safe", async () => {
+        const { avatar: payee1Safe } = await setupAvatar(payee1);
+        leaf = abiCoder.encode(
+          ["address", "bytes4", "bytes", "bytes", "bytes"],
+          [
+            claimSettlement.address,
+            [1, 1, 0, 4],
+            abiCoder.encode(
+              ["address", "uint256", "uint256"],
+              [avatar.address, startFrom, startFrom + 100]
+            ),
+            abiCoder.encode([], []),
+            abiCoder.encode(
+              ["address", "uint256", "address"],
+              [token.address, transferAmount, payee1Safe.address]
+            ),
+          ]
+        );
+        const { r, s, v } = await signMessage(leaf, validator);
+        const data = claimSettlement.interface.encodeFunctionData(
+          "signedExecute",
+          [v, r, s, leaf, abiCoder.encode([], [])]
+        );
+        await payee1Safe
+          .connect(payee1)
+          .execTransaction(
+            claimSettlement.address,
+            0,
+            data,
+            0,
+            0,
+            0,
+            0,
+            AddressZero,
+            AddressZero,
+            "0x"
+          );
+        expect(await token.balanceOf(payee1Safe.address)).to.equal(
+          transferAmount
+        );
+        expect(await token.balanceOf(avatar.address)).to.equal(
+          mintAmount.sub(transferAmount)
+        );
       });
     });
     describe("format 3 (ERC20)", async () => {
