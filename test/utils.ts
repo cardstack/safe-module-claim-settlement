@@ -22,7 +22,6 @@ export const signMessage = async (
     ["uint8", "bytes32", "bytes32"],
     [v, r, s]
   );
-  const o = await utils.verifyMessage(messageHashBytes, signature);
   return {
     signature,
     encodedSignature,
