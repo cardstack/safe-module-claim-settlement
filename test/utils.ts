@@ -12,7 +12,8 @@ export const signMessage = async (
   signer: SignerWithAddress
 ) => {
   const abiCoder = new ethers.utils.AbiCoder();
-  const messageHashBytes = utils.arrayify(utils.keccak256(message));
+  const messageHashString = utils.keccak256(message);
+  const messageHashBytes = utils.arrayify(messageHashString);
   const signature = await signer.signMessage(messageHashBytes);
   const r = signature.slice(0, 66);
   const s = "0x" + signature.slice(66, 130);
@@ -21,7 +22,7 @@ export const signMessage = async (
     ["uint8", "bytes32", "bytes32"],
     [v, r, s]
   );
-  // const o = await utils.verifyMessage(messageHashBytes, signature);
+  const o = await utils.verifyMessage(messageHashBytes, signature);
   return {
     signature,
     encodedSignature,
@@ -29,6 +30,7 @@ export const signMessage = async (
     s,
     v,
     messageHashBytes,
+    messageHashString,
   };
 };
 
