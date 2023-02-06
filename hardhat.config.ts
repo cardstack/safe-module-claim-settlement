@@ -9,6 +9,8 @@ import "hardhat-deploy";
 import dotenv from "dotenv";
 import type { HttpNetworkUserConfig } from "hardhat/types";
 import yargs from "yargs";
+import "@cardstack/upgrade-manager";
+import { AddressOne } from "@gnosis.pm/safe-contracts";
 
 const argv = yargs
   .option("network", {
@@ -51,6 +53,16 @@ export default {
   solidity: {
     compilers: [{ version: "0.8.9" }],
   },
+  upgradeManager: {
+    contracts: [
+      {
+        id: "ClaimSettlement",
+        abstract: true,
+        determinitstic: true,
+        constructorArgs: [AddressOne, AddressOne, AddressOne],
+      },
+    ],
+  },
   networks: {
     mainnet: {
       ...sharedNetworkConfig,
@@ -60,29 +72,14 @@ export default {
       ...sharedNetworkConfig,
       url: `https://rinkeby.infura.io/v3/${INFURA_KEY}`,
     },
-    kovan: {
-      ...sharedNetworkConfig,
-      url: `https://kovan.infura.io/v3/${INFURA_KEY}`,
-    },
     goerli: {
       ...sharedNetworkConfig,
-      url: `https://goerli.infura.io/v3/${INFURA_KEY}`,
-    },
-    xdai: {
-      ...sharedNetworkConfig,
-      url: "https://rpc.gnosischain.com",
-    },
-    sokol: {
-      ...sharedNetworkConfig,
-      url: "https://sokol.poa.network",
+      url: "https://eth-goerli.public.blastapi.io",
+      chainId: 5,
     },
     matic: {
       ...sharedNetworkConfig,
       url: "https://rpc-mainnet.maticvigil.com",
-    },
-    mumbai: {
-      ...sharedNetworkConfig,
-      url: `https://matic-mumbai.chainstacklabs.com`,
     },
   },
   namedAccounts: {
