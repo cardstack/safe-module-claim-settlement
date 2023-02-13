@@ -201,17 +201,12 @@ abstract contract ClaimSettlementBase is Module {
                 currentBalance >= minimumTokens,
                 "Not enough tokens to transfer"
             );
-            if (
+            return
                 transferERC20(
                     action.token,
                     msg.sender,
                     Math.min(action.amount, currentBalance)
-                )
-            ) {
-                return true;
-            } else {
-                return false;
-            }
+                );
         }
         if (typehash == TRANSFERNFTTOCALLER_TYPEHASH) {
             TransferNFTToCaller memory action = abi.decode(
