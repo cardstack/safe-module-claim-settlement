@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/interfaces/IERC721.sol";
-import "@openzeppelin/contracts/interfaces/IERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
 import "./ClaimSettlementBase.sol";
 
@@ -12,6 +11,28 @@ contract ClaimSettlement is ClaimSettlementBase {
     constructor(address _owner, address _avatar, address _target) {
         bytes memory initParams = abi.encode(_owner, _avatar, _target);
         setUp(initParams);
+        domain = EIP712Domain({
+            name: "CardstackClaimSettlementModule",
+            version: "1", // potentially this should be either the module or safe address
+            chainId: block.chainid, // Set to real chain ID
+            verifyingContract: address(this) // Potentially this should be the safe address?
+        });
+        DOMAIN_SEPARATOR = hash(domain);
+    }
+
+    function hash(
+        EIP712Domain memory eip712Domain
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    EIP712DOMAIN_TYPEHASH,
+                    keccak256(bytes(eip712Domain.name)),
+                    keccak256(bytes(eip712Domain.version)),
+                    eip712Domain.chainId,
+                    eip712Domain.verifyingContract
+                )
+            );
     }
 
     function setUp(bytes memory initParams) public override initializer {
@@ -29,51 +50,18 @@ contract ClaimSettlement is ClaimSettlementBase {
         transferOwnership(_owner);
     }
 
-    function isSigned(
-        uint8 v,
-        bytes32 r,
-        bytes32 s,
-        bytes32 hash
-    ) public view returns (bool) {
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
-        bytes32 prefixedHashMessage = keccak256(abi.encodePacked(prefix, hash));
-        address signer = ecrecover(prefixedHashMessage, v, r, s);
-        return signer == keySigner;
-    }
-
     function signedExecute(
-        uint8 v,
-        bytes32 r,
-        bytes32 s,
-        bytes memory leaf,
-        bytes memory extraData
+        bytes calldata signature,
+        bytes calldata everything
     ) public {
-        // verify in tree
-        (
-            address module,
-            bytes4 formats,
-            bytes memory validityData,
-            bytes memory userData,
-            bytes memory actionData
-        ) = abi.decode(leaf, (address, bytes4, bytes, bytes, bytes));
-        require(module == address(this), "invalid module");
-        bytes32 leafHash = keccak256(leaf);
-        require(formats[0] == hex"01", "invalid format");
         // Check it's signed
-        require(isSigned(v, r, s, leafHash), "invalid signature");
-        // Check valid time/etc
-        require(isValid(formats[1], validityData, leafHash), "invalid leaf");
-        // Check user is allowed to call this
-        require(isValidUser(formats[2], userData), "invalid caller");
-        // Execute action
+        bytes32 digest = executeAndCreateDigest(everything);
+
+        // Check signed at the end
         require(
-            executeAction(formats[3], actionData, extraData),
-            "action failed"
+            keySigner == ECDSA.recover(digest, signature),
+            "Invalid signature"
         );
-        // Mark as used, if applicable
-        if (formats[1] == hex"01") {
-            used[leafHash] = true;
-        }
         // emit event
     }
 }

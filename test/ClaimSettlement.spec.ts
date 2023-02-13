@@ -1,7 +1,14 @@
 import "@nomiclabs/hardhat-ethers";
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, getChainId } from "hardhat";
+import {
+  encodeValue,
+  getTypeHash,
+  encodeData,
+  asArray,
+  getMessage,
+} from "eip-712";
 
 import {
   loadFixture,
@@ -10,7 +17,12 @@ import {
 } from "@nomicfoundation/hardhat-network-helpers";
 
 import { setupAvatar, setupTokens } from "./fixtures";
-import { signMessage, getNativeBalance, gasUsedByTx } from "./utils";
+import {
+  signMessage,
+  getNativeBalance,
+  gasUsedByTx,
+  getTypedData,
+} from "./utils";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { AddressZero } from "@ethersproject/constants";
@@ -100,13 +112,79 @@ describe("claimSettlement", async () => {
           ]
         );
       });
-      it("transfer token", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
+      it.only("transfer token", async () => {
+        let startFrom = await time.latest();
+        console.log(startFrom);
+        let data = getTypedData(
+          await getChainId(),
+          claimSettlement.address,
+          {
+            id: "0x0000000000000000000000000000000000000000000000000000000000000001",
+            state: {
+              validFromTime: startFrom,
+              validToTime: startFrom + 100,
+            },
+            user: {
+              user: payee1.address,
+            },
+            action: {
+              token: token.address,
+              amount: transferAmount,
+            },
+          },
+          "TimeRangeSeconds",
+          "Address",
+          "TransferERC20ToCaller"
+        );
+        console.log(data);
+        const signature = await validator._signTypedData(
+          data.domain,
+          data.types,
+          data.message
+        );
+        console.log(signature);
+        //console.log(signature2);
         expect(await token.balanceOf(payee1.address)).to.equal(0);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
-
+        console.log(data.message.state);
+        console.log(encodeData(data, "TimeRangeSeconds", data.message.state));
+        await claimSettlement.connect(payee1).signedExecute(
+          signature,
+          abiCoder.encode(
+            [
+              "bytes32",
+              "bytes32",
+              "bytes32",
+              "bytes",
+              "bytes32",
+              "bytes",
+              "bytes32",
+              "bytes",
+              "bytes",
+            ],
+            [
+              getTypeHash(data, "Claim"),
+              "0x0000000000000000000000000000000000000000000000000000000000000001",
+              getTypeHash(data, "TimeRangeSeconds"),
+              abiCoder.encode(
+                ["uint256", "uint256"],
+                [
+                  data.message.state.validFromTime,
+                  data.message.state.validToTime,
+                ]
+              ),
+              getTypeHash(data, "Address"),
+              abiCoder.encode(["address"], [data.message.user.user]),
+              getTypeHash(data, "TransferERC20ToCaller"),
+              abiCoder.encode(
+                ["address", "uint256"],
+                [data.message.action.token, data.message.action.amount]
+              ),
+              abiCoder.encode(["uint256"], [100000]), //extradata
+            ]
+          )
+        );
+        console.log("transferring", transferAmount);
+        console.log("transferred:", await token.balanceOf(payee1.address));
         expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
         expect(await token.balanceOf(avatar.address)).to.equal(
           mintAmount.sub(transferAmount)
