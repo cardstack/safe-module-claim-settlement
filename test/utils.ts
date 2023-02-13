@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { utils } from "ethers";
+import { BigNumber, Signer, utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { TransactionReceipt } from "@ethersproject/providers";
 
@@ -64,7 +64,7 @@ class SolidityStruct {
   }
 
   typeHash() {
-    return ethers.utils.keccak256(this.typeString());
+    return ethers.utils.keccak256(utils.toUtf8Bytes(this.typeString()));
   }
 
   abiEncode() {
@@ -75,14 +75,22 @@ class SolidityStruct {
     );
   }
 
-  typedData () {
-    return {
-      `${this.structName}` : this.properties
-    }
+  typedData() {
+    let type: { [key: string]: { name: string; type: string }[] } = {};
+    type[this.structName] = this.properties;
+    return type;
+  }
+
+  asMapping() {
+    let data: { [key: string]: any } = {};
+    this.properties.forEach((o, i) => {
+      data[o.name] = this.values[i];
+    });
+    return data;
   }
 }
 
-class TimeRangeSeconds extends SolidityStruct {
+export class TimeRangeSeconds extends SolidityStruct {
   constructor(validFromTime: number, validToTime: number) {
     super(
       "TimeRangeSeconds",
@@ -95,14 +103,14 @@ class TimeRangeSeconds extends SolidityStruct {
   }
 }
 
-class Address extends SolidityStruct {
+export class Address extends SolidityStruct {
   constructor(user: string) {
     super("Address", [{ name: "user", type: "address" }], [user]);
   }
 }
 
-class TransferERC20ToCaller extends SolidityStruct {
-  constructor(token: string, amount: number) {
+export class TransferERC20ToCaller extends SolidityStruct {
+  constructor(token: string, amount: BigNumber) {
     super(
       "TransferERC20ToCaller",
       [
@@ -114,50 +122,106 @@ class TransferERC20ToCaller extends SolidityStruct {
   }
 }
 
+export class Claim {
+  id: string;
+  chainId: any;
+  address: any;
+  stateCheck: SolidityStruct;
+  callerCheck: SolidityStruct;
+  action: SolidityStruct;
+
+  constructor(
+    id: string,
+    chainId: any,
+    address: any,
+    stateCheck: SolidityStruct,
+    callerCheck: SolidityStruct,
+    action: SolidityStruct
+  ) {
+    this.id = id;
+    this.chainId = chainId;
+    this.address = address;
+    this.stateCheck = stateCheck;
+    this.callerCheck = callerCheck;
+    this.action = action;
+  }
+
+  typedData() {
+    return getTypedData(
+      this.chainId,
+      this.address,
+      this.id,
+      this.stateCheck,
+      this.callerCheck,
+      this.action
+    );
+  }
+
+  typeString() {
+    return "Claim(bytes32 id,TimeRangeSeconds state,Address user,TransferERC20ToCaller action)Address(address user)TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)TransferERC20ToCaller(address token,uint256 amount)";
+  }
+
+  typeHash() {
+    return ethers.utils.keccak256(utils.toUtf8Bytes(this.typeString()));
+  }
+
+  sign(signer: SignerWithAddress) {
+    let data = this.typedData();
+    return signer._signTypedData(data.domain, data.types, data.message);
+  }
+
+  abiEncode(extraTypes: string[], extraData: any[]) {
+    let abiCoder = new ethers.utils.AbiCoder();
+    return abiCoder.encode(
+      [
+        "bytes32",
+        "bytes32",
+        "bytes32",
+        "bytes",
+        "bytes32",
+        "bytes",
+        "bytes32",
+        "bytes",
+        "bytes",
+      ],
+      [
+        this.typeHash(),
+        this.id,
+        this.stateCheck.typeHash(),
+        this.stateCheck.abiEncode(),
+        this.callerCheck.typeHash(),
+        this.callerCheck.abiEncode(),
+        this.action.typeHash(),
+        this.action.abiEncode(),
+        abiCoder.encode(extraTypes, extraData),
+      ]
+    );
+  }
+}
+
 export const getTypedData = (
   chainId: any,
   address: any,
-  data: any,
-  stateType: string,
-  userType: string,
-  actionType: string
+  id: string,
+  state: SolidityStruct,
+  caller: SolidityStruct,
+  action: SolidityStruct
 ) => {
-  return {
-    types: {
-      // EIP712Domain: [
-      //   { name: "name", type: "string" },
-      //   { name: "version", type: "string" },
-      //   { name: "chainId", type: "uint256" },
-      //   { name: "verifyingContract", type: "address" },
-      // ],
-      TimeRangeSeconds: [
-        { name: "validFromTime", type: "uint256" },
-        { name: "validToTime", type: "uint256" },
-      ],
-      // TimeRangeBlocks: [
-      //  { name: "validFromBlock", type: "uint256" },
-      //  { name: "validToBlock", type: "uint256" },
-      //],
-      Address: [{ name: "user", type: "address" }],
-      //NFTOwner: [
-      //  { name: "address", type: "address" },
-      //  { name: "tokenId", type: "uint256" },
-      //],
-      TransferERC20ToCaller: [
-        { name: "token", type: "address" },
-        { name: "amount", type: "uint256" },
-      ],
-      //TransferERC721ToCaller: [
-      //  { name: "token", type: "address" },
-      //  { name: "tokenId", type: "uint256" },
-      //],
+  let types = {
+    ...state.typedData(),
+    ...caller.typedData(),
+    ...action.typedData(),
+    ...{
       Claim: [
         { name: "id", type: "bytes32" },
-        { name: "state", type: stateType },
-        { name: "user", type: userType },
-        { name: "action", type: actionType },
+        { name: "state", type: state.structName },
+        { name: "user", type: caller.structName },
+        { name: "action", type: action.structName },
       ],
     },
+  };
+  return {
+    types: types,
     primaryType: "Claim",
     domain: {
       name: "CardstackClaimSettlementModule",
@@ -165,6 +229,11 @@ export const getTypedData = (
       chainId: chainId,
       verifyingContract: address,
     },
-    message: data,
+    message: {
+      id: id,
+      state: state.asMapping(),
+      user: caller.asMapping(),
+      action: action.asMapping(),
+    },
   };
 };
