@@ -234,7 +234,7 @@ abstract contract ClaimSettlementBase is Module {
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
-                DOMAIN_SEPARATOR,
+                domainSeparator,
                 keccak256(
                     abi.encode(typehash, id, validHash, callerHash, actionHash)
                 )
