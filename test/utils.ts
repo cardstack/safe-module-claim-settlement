@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { BigNumber, Signer, utils } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { TransactionReceipt } from "@ethersproject/providers";
 
@@ -57,7 +57,7 @@ class SolidityStruct {
   }
 
   typeString() {
-    let structArguments = this.properties
+    const structArguments = this.properties
       .map((o) => o.type + " " + o.name)
       .join(",");
     return `${this.structName}(${structArguments})`;
@@ -68,7 +68,7 @@ class SolidityStruct {
   }
 
   abiEncode() {
-    let abiCoder = new ethers.utils.AbiCoder();
+    const abiCoder = new ethers.utils.AbiCoder();
     return abiCoder.encode(
       this.properties.map((o) => o.type),
       this.values
@@ -76,13 +76,13 @@ class SolidityStruct {
   }
 
   typedData() {
-    let type: { [key: string]: { name: string; type: string }[] } = {};
+    const type: { [key: string]: { name: string; type: string }[] } = {};
     type[this.structName] = this.properties;
     return type;
   }
 
   asMapping() {
-    let data: { [key: string]: any } = {};
+    const data: { [key: string]: any } = {};
     this.properties.forEach((o, i) => {
       data[o.name] = this.values[i];
     });
@@ -184,14 +184,13 @@ export class Claim {
   }
 
   typeString() {
-    let ownTypeString = `Claim(bytes32 id,${this.stateCheck.structName} state,${this.callerCheck.structName} caller,${this.action.structName} action)`;
-    let subTypes = [
+    const ownTypeString = `Claim(bytes32 id,${this.stateCheck.structName} state,${this.callerCheck.structName} caller,${this.action.structName} action)`;
+    const subTypes = [
       this.stateCheck.typeString(),
       this.callerCheck.typeString(),
       this.action.typeString(),
     ].sort();
-    let calculatedString = ownTypeString + subTypes.join("");
-    return calculatedString;
+    return ownTypeString + subTypes.join("");
   }
 
   typeHash() {
@@ -199,12 +198,12 @@ export class Claim {
   }
 
   sign(signer: SignerWithAddress) {
-    let data = this.typedData();
+    const data = this.typedData();
     return signer._signTypedData(data.domain, data.types, data.message);
   }
 
   abiEncode(extraTypes: string[] = [], extraData: any[] = []) {
-    let abiCoder = new ethers.utils.AbiCoder();
+    const abiCoder = new ethers.utils.AbiCoder();
     return abiCoder.encode(
       [
         "bytes32",
@@ -240,7 +239,7 @@ export const getTypedData = (
   caller: SolidityStruct,
   action: SolidityStruct
 ) => {
-  let types = {
+  const types = {
     ...state.typedData(),
     ...caller.typedData(),
     ...action.typedData(),

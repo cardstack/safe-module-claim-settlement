@@ -17,7 +17,7 @@ contract ClaimSettlement is ClaimSettlementBase {
             chainId: block.chainid, // Set to real chain ID
             verifyingContract: address(this) // Potentially this should be the safe address?
         });
-        DOMAIN_SEPARATOR = hash(domain);
+        domainSeparator = hash(domain);
     }
 
     function hash(

@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 abstract contract ClaimSettlementBase is Module {
     mapping(bytes32 => bool) public used; // "claim" terminology not always appropriate, but this is a record of whether a claim has been used
 
-    bytes32 DOMAIN_SEPARATOR;
+    bytes32 public domainSeparator;
     EIP712Domain public domain;
 
     struct EIP712Domain {
@@ -19,7 +19,7 @@ abstract contract ClaimSettlementBase is Module {
         address verifyingContract;
     }
 
-    bytes32 constant EIP712DOMAIN_TYPEHASH =
+    bytes32 public constant EIP712DOMAIN_TYPEHASH =
         keccak256(
             "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
         );
@@ -30,14 +30,14 @@ abstract contract ClaimSettlementBase is Module {
 
     // State conditions
 
-    bytes32 constant NONE_TYPEHASH = keccak256("None(bool empty)");
+    bytes32 public constant NONE_TYPEHASH = keccak256("None(bool empty)");
 
     struct TimeRangeSeconds {
         uint256 validFromTime;
         uint256 validToTime;
     }
 
-    bytes32 constant TIMERANGESECONDS_TYPEHASH =
+    bytes32 public constant TIMERANGESECONDS_TYPEHASH =
         keccak256(
             "TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)"
         );
@@ -47,7 +47,7 @@ abstract contract ClaimSettlementBase is Module {
         uint256 validToBlock;
     }
 
-    bytes32 constant TIMERANGEBLOCKS_TYPEHASH =
+    bytes32 public constant TIMERANGEBLOCKS_TYPEHASH =
         keccak256(
             "TimeRangeBlocks(uint256 validFromBlock,uint256 validToBlock)"
         );
@@ -57,14 +57,15 @@ abstract contract ClaimSettlementBase is Module {
         address caller;
     }
 
-    bytes32 constant ADDRESS_TYPEHASH = keccak256("Address(address caller)");
+    bytes32 public constant ADDRESS_TYPEHASH =
+        keccak256("Address(address caller)");
 
     struct NFTOwner {
         address nftContract;
         uint256 tokenId;
     }
 
-    bytes32 constant NFTOWNER_TYPEHASH =
+    bytes32 public constant NFTOWNER_TYPEHASH =
         keccak256("NFTOwner(address nftContract,uint256 tokenId)");
 
     // Actions
@@ -74,7 +75,7 @@ abstract contract ClaimSettlementBase is Module {
         uint256 amount;
     }
 
-    bytes32 constant TRANSFERERC20TOCALLER_TYPEHASH =
+    bytes32 public constant TRANSFERERC20TOCALLER_TYPEHASH =
         keccak256("TransferERC20ToCaller(address token,uint256 amount)");
 
     struct TransferNFTToCaller {
@@ -82,7 +83,7 @@ abstract contract ClaimSettlementBase is Module {
         uint256 tokenId;
     }
 
-    bytes32 constant TRANSFERNFTTOCALLER_TYPEHASH =
+    bytes32 public constant TRANSFERNFTTOCALLER_TYPEHASH =
         keccak256("TransferNFTToCaller(address token,uint256 tokenId)");
 
     modifier onlyAvatar() {
