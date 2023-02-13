@@ -158,7 +158,14 @@ export class Claim {
   }
 
   typeString() {
-    return "Claim(bytes32 id,TimeRangeSeconds state,Address caller,TransferERC20ToCaller action)Address(address caller)TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)TransferERC20ToCaller(address token,uint256 amount)";
+    let ownTypeString = `Claim(bytes32 id,${this.stateCheck.structName} state,${this.callerCheck.structName} caller,${this.action.structName} action)`;
+    let subTypes = [
+      this.stateCheck.typeString(),
+      this.callerCheck.typeString(),
+      this.action.typeString(),
+    ].sort();
+    let calculatedString = ownTypeString + subTypes.join("");
+    return calculatedString;
   }
 
   typeHash() {
