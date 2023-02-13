@@ -122,6 +122,32 @@ export class TransferERC20ToCaller extends SolidityStruct {
   }
 }
 
+export class NFTOwner extends SolidityStruct {
+  constructor(nftContract: string, tokenId: BigNumber) {
+    super(
+      "NFTOwner",
+      [
+        { name: "nftContract", type: "address" },
+        { name: "tokenId", type: "uint256" },
+      ],
+      [nftContract, tokenId]
+    );
+  }
+}
+
+export class TransferNFTToCaller extends SolidityStruct {
+  constructor(token: string, tokenId: BigNumber) {
+    super(
+      "TransferNFTToCaller",
+      [
+        { name: "token", type: "address" },
+        { name: "tokenId", type: "uint256" },
+      ],
+      [token, tokenId]
+    );
+  }
+}
+
 export class Claim {
   id: string;
   chainId: any;
@@ -177,7 +203,7 @@ export class Claim {
     return signer._signTypedData(data.domain, data.types, data.message);
   }
 
-  abiEncode(extraTypes: string[], extraData: any[]) {
+  abiEncode(extraTypes: string[] = [], extraData: any[] = []) {
     let abiCoder = new ethers.utils.AbiCoder();
     return abiCoder.encode(
       [

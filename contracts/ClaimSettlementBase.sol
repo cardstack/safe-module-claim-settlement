@@ -144,7 +144,7 @@ abstract contract ClaimSettlementBase is Module {
                 return false;
             }
         }
-        revert("caller check not supported");
+        revert("Caller check not supported");
     }
 
     function transferERC20(
@@ -158,7 +158,7 @@ abstract contract ClaimSettlementBase is Module {
             amount
         );
         bool execTxStatus = exec(token, 0, execTxData, Enum.Operation.Call);
-        require(execTxStatus, "execTx failed");
+        require(execTxStatus, "ERC20 transfer failed");
         return true;
     }
 
@@ -168,12 +168,19 @@ abstract contract ClaimSettlementBase is Module {
         uint256 tokenId
     ) internal returns (bool) {
         bytes memory execTxData = abi.encodeWithSelector(
-            0x23b872dd,
+            0x23b872dd, //method id: transferFrom(address _from, address _to, uint256 _tokenId)
             avatar,
             to,
             tokenId
         );
-        return exec(tokenAddress, 0, execTxData, Enum.Operation.Call);
+        bool execTxStatus = exec(
+            tokenAddress,
+            0,
+            execTxData,
+            Enum.Operation.Call
+        );
+        require(execTxStatus, "ERC721 transfer failed");
+        return true;
     }
 
     function executeAction(
@@ -205,7 +212,7 @@ abstract contract ClaimSettlementBase is Module {
                 return false;
             }
         }
-        if (typehash == TRANSFERERC20TOCALLER_TYPEHASH) {
+        if (typehash == TRANSFERNFTTOCALLER_TYPEHASH) {
             TransferNFTToCaller memory action = abi.decode(
                 actionData,
                 (TransferNFTToCaller)
@@ -266,16 +273,16 @@ abstract contract ClaimSettlementBase is Module {
             );
 
         // IDs are single use
-        require(used[id] == false, "already claimed");
+        require(used[id] == false, "Already claimed");
         used[id] = true;
 
         // Check requirements like safe address, valid time ranges, etc
-        require(isValidState(validityTypehash, validityData), "not valid");
+        require(isValidState(validityTypehash, validityData), "Invalid state");
 
         // Check caller is allowed to perform the action
         require(
             isValidCaller(callerTypehash, callerData),
-            "caller cannot claim"
+            "Caller cannot claim"
         );
 
         // Execute action
