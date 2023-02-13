@@ -126,14 +126,10 @@ describe("claimSettlement", async () => {
           new Address(payee1.address),
           new TransferERC20ToCaller(token.address, transferAmount)
         );
-        console.log(claim);
         const signature = claim.sign(validator);
         let encoded = claim.abiEncode(["uint256"], [100000]);
-        console.log("Encoded", encoded);
         expect(await token.balanceOf(payee1.address)).to.equal(0);
         await claimSettlement.connect(payee1).signedExecute(signature, encoded);
-        console.log("transferring", transferAmount);
-        console.log("transferred:", await token.balanceOf(payee1.address));
         expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
         expect(await token.balanceOf(avatar.address)).to.equal(
           mintAmount.sub(transferAmount)
