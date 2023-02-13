@@ -215,7 +215,7 @@ abstract contract ClaimSettlementBase is Module {
             );
             return transferERC721(action.token, msg.sender, action.tokenId);
         }
-        return false;
+        revert("Action not supported");
     }
 
     function createDigest(
