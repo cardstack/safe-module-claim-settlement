@@ -54,12 +54,12 @@ abstract contract ClaimSettlementBase is Module {
             "TimeRangeBlocks(uint256 validFromBlock,uint256 validToBlock)"
         );
 
-    // User conditions
+    // Caller conditions
     struct Address {
-        address user;
+        address caller;
     }
 
-    bytes32 constant ADDRESS_TYPEHASH = keccak256("Address(address user)");
+    bytes32 constant ADDRESS_TYPEHASH = keccak256("Address(address caller)");
 
     struct NFTOwner {
         address nftContract;
@@ -107,9 +107,6 @@ abstract contract ClaimSettlementBase is Module {
                 validityData,
                 (TimeRangeSeconds)
             );
-            console.log("block.timestamp", block.timestamp);
-            console.log("check.validFromTime", check.validFromTime);
-            console.log("check.validToTime", check.validToTime);
             if (
                 check.validFromTime <= block.timestamp && // for these use cases, I don't think there's an issue with miners manipulating the block time
                 block.timestamp < check.validToTime
@@ -122,9 +119,9 @@ abstract contract ClaimSettlementBase is Module {
         revert("State check not supported");
     }
 
-    function isValidUser(
+    function isValidCaller(
         bytes32 typehash,
-        bytes memory userData
+        bytes memory callerData
     ) public view returns (bool) {
         // Instead of using the format number approach, use the typehash of the struct to
         // decode into.
@@ -132,15 +129,15 @@ abstract contract ClaimSettlementBase is Module {
             return true;
         }
         if (typehash == ADDRESS_TYPEHASH) {
-            Address memory check = abi.decode(userData, (Address));
-            if (check.user == msg.sender) {
+            Address memory check = abi.decode(callerData, (Address));
+            if (check.caller == msg.sender) {
                 return true;
             } else {
                 return false;
             }
         }
         if (typehash == NFTOWNER_TYPEHASH) {
-            NFTOwner memory check = abi.decode(userData, (NFTOwner));
+            NFTOwner memory check = abi.decode(callerData, (NFTOwner));
             if (
                 IERC721(check.nftContract).ownerOf(check.tokenId) == msg.sender
             ) {
@@ -149,7 +146,7 @@ abstract contract ClaimSettlementBase is Module {
                 return false;
             }
         }
-        revert("User check not supported");
+        revert("caller check not supported");
     }
 
     function transferERC20(
@@ -224,7 +221,7 @@ abstract contract ClaimSettlementBase is Module {
         bytes32 typehash,
         bytes32 id,
         bytes32 validHash,
-        bytes32 userHash,
+        bytes32 callerHash,
         bytes32 actionHash
     ) internal view returns (bytes32) {
         // Note: we need to use `encodePacked` here instead of `encode`.
@@ -233,13 +230,7 @@ abstract contract ClaimSettlementBase is Module {
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
                 keccak256(
-                    abi.encode(
-                        typehash, // This typehash variable is the key cryptographic security question as it is user supplied
-                        id,
-                        validHash,
-                        userHash,
-                        actionHash
-                    )
+                    abi.encode(typehash, id, validHash, callerHash, actionHash)
                 )
             )
         );
@@ -256,8 +247,8 @@ abstract contract ClaimSettlementBase is Module {
             bytes32 id,
             bytes32 validityTypehash,
             bytes memory validityData,
-            bytes32 userTypehash,
-            bytes memory userData,
+            bytes32 callerTypehash,
+            bytes memory callerData,
             bytes32 actionTypehash,
             bytes memory actionData,
             bytes memory extraData
@@ -283,8 +274,11 @@ abstract contract ClaimSettlementBase is Module {
         // Check requirements like safe address, valid time ranges, etc
         require(isValidState(validityTypehash, validityData), "not valid");
 
-        // Check user is allowed to perform the action
-        require(isValidUser(userTypehash, userData), "caller cannot claim");
+        // Check caller is allowed to perform the action
+        require(
+            isValidCaller(callerTypehash, callerData),
+            "caller cannot claim"
+        );
 
         // Execute action
         require(
@@ -296,7 +290,7 @@ abstract contract ClaimSettlementBase is Module {
                 rootTypehash,
                 id,
                 keccak256(bytes.concat(validityTypehash, validityData)),
-                keccak256(bytes.concat(userTypehash, userData)),
+                keccak256(bytes.concat(callerTypehash, callerData)),
                 keccak256(bytes.concat(actionTypehash, actionData))
             );
     }

@@ -104,8 +104,8 @@ export class TimeRangeSeconds extends SolidityStruct {
 }
 
 export class Address extends SolidityStruct {
-  constructor(user: string) {
-    super("Address", [{ name: "user", type: "address" }], [user]);
+  constructor(caller: string) {
+    super("Address", [{ name: "caller", type: "address" }], [caller]);
   }
 }
 
@@ -158,7 +158,7 @@ export class Claim {
   }
 
   typeString() {
-    return "Claim(bytes32 id,TimeRangeSeconds state,Address user,TransferERC20ToCaller action)Address(address user)TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)TransferERC20ToCaller(address token,uint256 amount)";
+    return "Claim(bytes32 id,TimeRangeSeconds state,Address caller,TransferERC20ToCaller action)Address(address caller)TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)TransferERC20ToCaller(address token,uint256 amount)";
   }
 
   typeHash() {
@@ -215,7 +215,7 @@ export const getTypedData = (
       Claim: [
         { name: "id", type: "bytes32" },
         { name: "state", type: state.structName },
-        { name: "user", type: caller.structName },
+        { name: "caller", type: caller.structName },
         { name: "action", type: action.structName },
       ],
     },
@@ -232,7 +232,7 @@ export const getTypedData = (
     message: {
       id: id,
       state: state.asMapping(),
-      user: caller.asMapping(),
+      caller: caller.asMapping(),
       action: action.asMapping(),
     },
   };
