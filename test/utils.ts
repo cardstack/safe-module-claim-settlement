@@ -4,13 +4,13 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 class SolidityStruct {
   properties: { name: string; type: string }[];
-  values: any[];
+  values: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   structName: string;
 
   constructor(
     structName: string,
     properties: { name: string; type: string }[],
-    values: any[]
+    values: any[] // eslint-disable-line @typescript-eslint/no-explicit-any
   ) {
     this.structName = structName;
     this.properties = properties;
@@ -43,7 +43,7 @@ class SolidityStruct {
   }
 
   asMapping() {
-    const data: { [key: string]: any } = {};
+    const data: { [key: string]: any } = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
     this.properties.forEach((o, i) => {
       data[o.name] = this.values[i];
     });
@@ -111,16 +111,16 @@ export class TransferNFTToCaller extends SolidityStruct {
 
 export class Claim {
   id: string;
-  chainId: any;
-  address: any;
+  chainId: string;
+  address: string;
   stateCheck: SolidityStruct;
   callerCheck: SolidityStruct;
   action: SolidityStruct;
 
   constructor(
     id: string,
-    chainId: any,
-    address: any,
+    chainId: string,
+    address: string,
     stateCheck: SolidityStruct,
     callerCheck: SolidityStruct,
     action: SolidityStruct
@@ -145,7 +145,9 @@ export class Claim {
   }
 
   typeString() {
+    // Construct a fake type which will contain our checks and actions
     const ownTypeString = `Claim(bytes32 id,${this.stateCheck.structName} state,${this.callerCheck.structName} caller,${this.action.structName} action)`;
+    // EIP-712 requires that the type string is sorted alphabetically for types other than the primary one
     const subTypes = [
       this.stateCheck.typeString(),
       this.callerCheck.typeString(),
@@ -163,6 +165,7 @@ export class Claim {
     return signer._signTypedData(data.domain, data.types, data.message);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   abiEncode(extraTypes: string[] = [], extraData: any[] = []) {
     const abiCoder = new ethers.utils.AbiCoder();
     return abiCoder.encode(
@@ -193,8 +196,8 @@ export class Claim {
 }
 
 export const getTypedData = (
-  chainId: any,
-  address: any,
+  chainId: string,
+  address: string,
   id: string,
   state: SolidityStruct,
   caller: SolidityStruct,
