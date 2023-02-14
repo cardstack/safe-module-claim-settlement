@@ -12,6 +12,10 @@
     "lint:ts": "eslint --max-warnings 0 .",
     "fmt:sol": "prettier 'contracts/**/*.sol' -w"
   },
+  "engines": {
+    "node": "^14.0.0",
+    "yarn": "^1"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cardstack/safe-module-claim-settlement.git"
@@ -31,6 +35,7 @@
     "yargs": "^17.5.1"
   },
   "devDependencies": {
+    "@cardstack/cardpay-sdk": "^1.0.35",
     "@cardstack/upgrade-manager": "^1.0.0",
     "@gnosis.pm/zodiac": "^1.1.3",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.7",

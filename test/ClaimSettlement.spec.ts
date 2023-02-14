@@ -9,14 +9,7 @@ import {
 } from "@nomicfoundation/hardhat-network-helpers";
 
 import { setupAvatar, setupTokens } from "./fixtures";
-import {
-  TimeRangeSeconds,
-  Address,
-  TransferERC20ToCaller,
-  TransferNFTToCaller,
-  Claim,
-  NFTOwner,
-} from "./utils";
+import { ClaimSettlement } from "@cardstack/cardpay-sdk";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { AddressZero } from "@ethersproject/constants";
@@ -67,7 +60,7 @@ describe("claimSettlement", async () => {
       payee1: SignerWithAddress,
       payee2: SignerWithAddress,
       validator: SignerWithAddress,
-      claim: Claim,
+      claim: ClaimSettlement.Claim,
       startFrom: number;
     const transferAmount = BigNumber.from(
       ethers.utils.parseUnits("1", "ether")
@@ -87,13 +80,16 @@ describe("claimSettlement", async () => {
     });
     describe("ERC20 transfers", async () => {
       beforeEach(async () => {
-        claim = new Claim(
+        claim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new Address(payee1.address),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.Address(payee1.address),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
       });
       it("transfer token", async () => {
@@ -157,13 +153,16 @@ describe("claimSettlement", async () => {
           avatar.address
         );
         await avatar.enableModule(signedAccessModule2.address);
-        const claimOnNewModule = new Claim(
+        const claimOnNewModule = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           signedAccessModule2.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new Address(payee1.address),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.Address(payee1.address),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = claimOnNewModule.sign(validator);
         const encoded = claim.abiEncode(["uint256"], [100000]);
@@ -174,13 +173,16 @@ describe("claimSettlement", async () => {
 
       it("can transfer if caller has an nft", async () => {
         await nft.mint(payee1.address, 1);
-        const nftClaim = new Claim(
+        const nftClaim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new NFTOwner(nft.address, BigNumber.from(1)),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.NFTOwner(nft.address, BigNumber.from(1)),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = await nftClaim.sign(validator);
         const encoded = nftClaim.abiEncode(["uint256"], [100000]);
@@ -190,13 +192,16 @@ describe("claimSettlement", async () => {
       it("cannot transfer if caller does not have an nft", async () => {
         // Give the NFT to someone else
         await nft.mint(payee2.address, 1);
-        const nftClaim = new Claim(
+        const nftClaim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new NFTOwner(nft.address, BigNumber.from(1)),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.NFTOwner(nft.address, BigNumber.from(1)),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = await nftClaim.sign(validator);
         const encoded = nftClaim.abiEncode(["uint256"], [100000]);
@@ -205,13 +210,16 @@ describe("claimSettlement", async () => {
         ).to.be.revertedWith("Caller cannot claim");
       });
       it("cannot transfer if the nft has not been minted", async () => {
-        const nftClaim = new Claim(
+        const nftClaim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new NFTOwner(nft.address, BigNumber.from(100)),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.NFTOwner(nft.address, BigNumber.from(100)),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = await nftClaim.sign(validator);
         const encoded = nftClaim.abiEncode(["uint256"], [100000]);
@@ -221,13 +229,16 @@ describe("claimSettlement", async () => {
       });
       it("cannot transfer if the user has the wrong nft", async () => {
         await nft.mint(payee1.address, 2);
-        const nftClaim = new Claim(
+        const nftClaim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new NFTOwner(nft.address, BigNumber.from(1)),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.NFTOwner(nft.address, BigNumber.from(1)),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = await nftClaim.sign(validator);
         const encoded = nftClaim.abiEncode(["uint256"], [100000]);
@@ -238,13 +249,16 @@ describe("claimSettlement", async () => {
       it("transfer to safe", async () => {
         const { avatar: payee1Safe } = await setupAvatar(payee1);
 
-        const safeClaim = new Claim(
+        const safeClaim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new Address(payee1Safe.address),
-          new TransferERC20ToCaller(token.address, transferAmount)
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.Address(payee1Safe.address),
+          new ClaimSettlement.TransferERC20ToCaller(
+            token.address,
+            transferAmount
+          )
         );
         const signature = await safeClaim.sign(validator);
         const encoded = safeClaim.abiEncode(["uint256"], [100000]);
@@ -278,13 +292,16 @@ describe("claimSettlement", async () => {
     describe("nft", async () => {
       beforeEach(async () => {
         await nft.mint(avatar.address, 1);
-        claim = new Claim(
+        claim = new ClaimSettlement.Claim(
           "0x0000000000000000000000000000000000000000000000000000000000000001",
           await getChainId(),
           claimSettlement.address,
-          new TimeRangeSeconds(startFrom, startFrom + 100),
-          new Address(payee1.address),
-          new TransferNFTToCaller(nft.address, BigNumber.from(1))
+          new ClaimSettlement.TimeRangeSeconds(startFrom, startFrom + 100),
+          new ClaimSettlement.Address(payee1.address),
+          new ClaimSettlement.TransferNFTToCaller(
+            nft.address,
+            BigNumber.from(1)
+          )
         );
       });
       it("transfer nft", async () => {
