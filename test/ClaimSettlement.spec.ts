@@ -1,8 +1,7 @@
 import "@nomiclabs/hardhat-ethers";
 
 import { expect } from "chai";
-import { ethers } from "hardhat";
-
+import { ethers, getChainId } from "hardhat";
 import {
   loadFixture,
   time,
@@ -10,14 +9,20 @@ import {
 } from "@nomicfoundation/hardhat-network-helpers";
 
 import { setupAvatar, setupTokens } from "./fixtures";
-import { signMessage, getNativeBalance, gasUsedByTx } from "./utils";
+import {
+  TimeRangeSeconds,
+  Address,
+  TransferERC20ToCaller,
+  TransferNFTToCaller,
+  Claim,
+  NFTOwner,
+} from "./utils";
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { AddressZero } from "@ethersproject/constants";
 
 describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
-  const abiCoder = new ethers.utils.AbiCoder();
   async function setupFixture() {
     const [deployer, validator, payee1, payee2] = await ethers.getSigners();
     const { token, gasToken, nft } = await setupTokens();
@@ -33,7 +38,6 @@ describe("claimSettlement", async () => {
     await avatar.enableModule(claimSettlement.address);
     await token.mint(avatar.address, mintAmount);
     await gasToken.mint(avatar.address, mintAmount);
-    await nft.mint(avatar.address, 1);
     return {
       wallets: {
         payee1,
@@ -63,7 +67,7 @@ describe("claimSettlement", async () => {
       payee1: SignerWithAddress,
       payee2: SignerWithAddress,
       validator: SignerWithAddress,
-      leaf: string,
+      claim: Claim,
       startFrom: number;
     const transferAmount = BigNumber.from(
       ethers.utils.parseUnits("1", "ether")
@@ -81,88 +85,64 @@ describe("claimSettlement", async () => {
       deployer = fixture.wallets.deployer;
       startFrom = await time.latest();
     });
-    describe("format 4 (ERC20)", async () => {
+    describe("ERC20 transfers", async () => {
       beforeEach(async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 4],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
+        claim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new Address(payee1.address),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
       });
       it("transfer token", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = claim.sign(validator);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
         expect(await token.balanceOf(payee1.address)).to.equal(0);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
-
+        await claimSettlement.connect(payee1).signedExecute(signature, encoded);
         expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
         expect(await token.balanceOf(avatar.address)).to.equal(
           mintAmount.sub(transferAmount)
         );
       });
       it("cannot transfer token after validity period", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = claim.sign(validator);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
         await mine(101);
+        expect(await token.balanceOf(payee1.address)).to.equal(0);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid leaf");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Invalid state");
       });
       it("cannot transfer if wrong signer", async () => {
-        const { r, s, v } = await signMessage(leaf, payee1);
+        const signature = claim.sign(payee1);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
+        expect(await token.balanceOf(payee1.address)).to.equal(0);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid signature");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Invalid signature");
       });
       it("cannot transfer if wrong caller", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 1, 4],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode(["address"], [validator.address]),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
-        );
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = claim.sign(validator);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
+        expect(await token.balanceOf(payee1.address)).to.equal(0);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid caller");
+          claimSettlement.connect(payee2).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Caller cannot claim");
       });
       it("cannot transfer if leaf is already used", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
+        const signature = claim.sign(validator);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
+        expect(await token.balanceOf(payee1.address)).to.equal(0);
+        await claimSettlement.connect(payee1).signedExecute(signature, encoded);
+        expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
+        expect(await token.balanceOf(avatar.address)).to.equal(
+          mintAmount.sub(transferAmount)
+        );
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid leaf");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Already claimed");
       });
       it("cannot transfer if leaf specifieds different module", async () => {
         const SignedAccessModule2 = await ethers.getContractFactory(
@@ -177,147 +157,101 @@ describe("claimSettlement", async () => {
           avatar.address
         );
         await avatar.enableModule(signedAccessModule2.address);
-        const { r, s, v } = await signMessage(leaf, validator);
-        await expect(
-          signedAccessModule2
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid module");
-      });
-      it("can transfer if format isValid format=0", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 0, 0, 4],
-            abiCoder.encode([], []),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
+        const claimOnNewModule = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          signedAccessModule2.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new Address(payee1.address),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
-        const { r, s, v } = await signMessage(leaf, validator);
-        claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
-      });
-      it("cannot transfer if unrecognised format for isValid", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 10, 0, 4],
-            abiCoder.encode([], []),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
-        );
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = claimOnNewModule.sign(validator);
+        const encoded = claim.abiEncode(["uint256"], [100000]);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid leaf");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Not authorized");
       });
-      it("cannot transfer if unrecognised format for isValidUser", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 10, 4],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
+
+      it("can transfer if caller has an nft", async () => {
+        await nft.mint(payee1.address, 1);
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(nft.address, BigNumber.from(1)),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
-        const { r, s, v } = await signMessage(leaf, validator);
-        await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid caller");
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
+        await claimSettlement.connect(payee1).signedExecute(signature, encoded);
+        expect(await nft.ownerOf(1)).to.equal(payee1.address);
       });
-      it("cannot transfer if unrecognised format for executeAction", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 10],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
+      it("cannot transfer if caller does not have an nft", async () => {
+        // Give the NFT to someone else
+        await nft.mint(payee2.address, 1);
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(nft.address, BigNumber.from(1)),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("action failed");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("Caller cannot claim");
       });
-      it("cannot transfer if payee does not have an nft", async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 2, 4],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode(["address", "uint256"], [nft.address, 1]),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1.address]
-            ),
-          ]
+      it("cannot transfer if the nft has not been minted", async () => {
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(nft.address, BigNumber.from(100)),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
         await expect(
-          claimSettlement
-            .connect(payee1)
-            .signedExecute(v, r, s, leaf, abiCoder.encode([], []))
-        ).to.be.revertedWith("invalid caller");
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("ERC721: invalid token ID"); // TODO: should we be catching this ourselves?
+      });
+      it("cannot transfer if the user has the wrong nft", async () => {
+        await nft.mint(payee1.address, 2);
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(nft.address, BigNumber.from(1)),
+          new TransferERC20ToCaller(token.address, transferAmount)
+        );
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
+        await expect(
+          claimSettlement.connect(payee1).signedExecute(signature, encoded)
+        ).to.be.revertedWith("ERC721: invalid token ID");
       });
       it("transfer to safe", async () => {
         const { avatar: payee1Safe } = await setupAvatar(payee1);
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 4],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256", "address"],
-              [token.address, transferAmount, payee1Safe.address]
-            ),
-          ]
+
+        const safeClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new Address(payee1Safe.address),
+          new TransferERC20ToCaller(token.address, transferAmount)
         );
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = await safeClaim.sign(validator);
+        const encoded = safeClaim.abiEncode(["uint256"], [100000]);
+        expect(await token.balanceOf(payee1Safe.address)).to.equal(0);
         const data = claimSettlement.interface.encodeFunctionData(
           "signedExecute",
-          [v, r, s, leaf, abiCoder.encode([], [])]
+          [signature, encoded]
         );
         await payee1Safe
           .connect(payee1)
@@ -341,196 +275,23 @@ describe("claimSettlement", async () => {
         );
       });
     });
-    describe("format 3 (ERC20)", async () => {
-      beforeEach(async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 3],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "uint256"],
-              [token.address, transferAmount]
-            ),
-          ]
-        );
-      });
-
-      it("transfer token", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
-        expect(await token.balanceOf(payee1.address)).to.equal(0);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(
-            v,
-            r,
-            s,
-            leaf,
-            abiCoder.encode(["address"], [payee1.address])
-          );
-
-        expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
-        expect(await token.balanceOf(avatar.address)).to.equal(
-          mintAmount.sub(transferAmount)
-        );
-      });
-      it("transfer token to another person", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
-        expect(await token.balanceOf(payee2.address)).to.equal(0);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(
-            v,
-            r,
-            s,
-            leaf,
-            abiCoder.encode(["address"], [payee2.address])
-          );
-
-        expect(await token.balanceOf(payee2.address)).to.equal(transferAmount);
-        expect(await token.balanceOf(avatar.address)).to.equal(
-          mintAmount.sub(transferAmount)
-        );
-      });
-    });
-    describe("format 2 (native)", async () => {
-      beforeEach(async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 2],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["uint256", "address"],
-              [transferAmount, payee1.address]
-            ),
-          ]
-        );
-      });
-
-      it("transfer token", async () => {
-        await deployer.sendTransaction({
-          to: avatar.address,
-          value: transferAmount, // Sends exactly 1.0 ether
-        });
-        expect(await getNativeBalance(avatar.address)).to.equal(transferAmount);
-        const { r, s, v } = await signMessage(leaf, validator);
-        const initialBalance = await getNativeBalance(payee1.address);
-        const tx = await claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
-        const receipt = await tx.wait();
-        const gasUsed = gasUsedByTx(receipt);
-        expect(await getNativeBalance(payee1.address)).to.equal(
-          initialBalance.sub(gasUsed).add(transferAmount)
-        );
-        expect(await getNativeBalance(avatar.address)).to.equal("0");
-      });
-    });
-    describe("format 1 (native)", async () => {
-      beforeEach(async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 1],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(["uint256"], [transferAmount]),
-          ]
-        );
-      });
-      it("transfer token", async () => {
-        await deployer.sendTransaction({
-          to: avatar.address,
-          value: transferAmount, // Sends exactly 1.0 ether
-        });
-        expect(await getNativeBalance(avatar.address)).to.equal(transferAmount);
-        const { r, s, v } = await signMessage(leaf, validator);
-        const initialBalance = await getNativeBalance(payee1.address);
-        const tx = await claimSettlement
-          .connect(payee1)
-          .signedExecute(
-            v,
-            r,
-            s,
-            leaf,
-            abiCoder.encode(["address"], [payee1.address])
-          );
-        const receipt = await tx.wait();
-        const gasUsed = gasUsedByTx(receipt);
-        expect(await getNativeBalance(payee1.address)).to.equal(
-          initialBalance.sub(gasUsed).add(transferAmount)
-        );
-        expect(await getNativeBalance(avatar.address)).to.equal("0");
-      });
-      it("transfer token to another person", async () => {
-        await deployer.sendTransaction({
-          to: avatar.address,
-          value: transferAmount, // Sends exactly 1.0 ether
-        });
-        expect(await getNativeBalance(avatar.address)).to.equal(transferAmount);
-        const { r, s, v } = await signMessage(leaf, validator);
-        const initialBalancePayee1 = await getNativeBalance(payee1.address);
-        const initialBalancePayee2 = await getNativeBalance(payee2.address);
-        const tx = await claimSettlement
-          .connect(payee1)
-          .signedExecute(
-            v,
-            r,
-            s,
-            leaf,
-            abiCoder.encode(["address"], [payee2.address])
-          );
-        const receipt = await tx.wait();
-        const gasUsed = gasUsedByTx(receipt);
-        expect(await getNativeBalance(payee1.address)).to.equal(
-          initialBalancePayee1.sub(gasUsed)
-        );
-        expect(await getNativeBalance(payee2.address)).to.equal(
-          initialBalancePayee2.add(transferAmount)
-        );
-        expect(await getNativeBalance(avatar.address)).to.equal("0");
-      });
-    });
     describe("nft", async () => {
       beforeEach(async () => {
-        leaf = abiCoder.encode(
-          ["address", "bytes4", "bytes", "bytes", "bytes"],
-          [
-            claimSettlement.address,
-            [1, 1, 0, 5],
-            abiCoder.encode(
-              ["address", "uint256", "uint256"],
-              [avatar.address, startFrom, startFrom + 100]
-            ),
-            abiCoder.encode([], []),
-            abiCoder.encode(
-              ["address", "address", "uint256"],
-              [nft.address, payee1.address, 1]
-            ),
-          ]
+        await nft.mint(avatar.address, 1);
+        claim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new Address(payee1.address),
+          new TransferNFTToCaller(nft.address, BigNumber.from(1))
         );
       });
       it("transfer nft", async () => {
-        const { r, s, v } = await signMessage(leaf, validator);
+        const signature = await claim.sign(validator);
+        const encoded = claim.abiEncode();
         expect(await nft.ownerOf(1)).to.equal(avatar.address);
-        await claimSettlement
-          .connect(payee1)
-          .signedExecute(v, r, s, leaf, abiCoder.encode([], []));
+        await claimSettlement.connect(payee1).signedExecute(signature, encoded);
         expect(await nft.ownerOf(1)).to.equal(payee1.address);
       });
     });

@@ -4,59 +4,148 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 abstract contract ClaimSettlementBase is Module {
     mapping(bytes32 => bool) public used; // "claim" terminology not always appropriate, but this is a record of whether a claim has been used
+
+    bytes32 public domainSeparator;
+    EIP712Domain public domain;
+
+    struct EIP712Domain {
+        string name;
+        string version;
+        uint256 chainId;
+        address verifyingContract;
+    }
+
+    bytes32 public constant EIP712DOMAIN_TYPEHASH =
+        keccak256(
+            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+        );
+
+    struct None {
+        bool empty;
+    }
+
+    // State conditions
+
+    bytes32 public constant NONE_TYPEHASH = keccak256("None(bool empty)");
+
+    struct TimeRangeSeconds {
+        uint256 validFromTime;
+        uint256 validToTime;
+    }
+
+    bytes32 public constant TIMERANGESECONDS_TYPEHASH =
+        keccak256(
+            "TimeRangeSeconds(uint256 validFromTime,uint256 validToTime)"
+        );
+
+    struct TimeRangeBlocks {
+        uint256 validFromBlock;
+        uint256 validToBlock;
+    }
+
+    bytes32 public constant TIMERANGEBLOCKS_TYPEHASH =
+        keccak256(
+            "TimeRangeBlocks(uint256 validFromBlock,uint256 validToBlock)"
+        );
+
+    // Caller conditions
+    struct Address {
+        address caller;
+    }
+
+    bytes32 public constant ADDRESS_TYPEHASH =
+        keccak256("Address(address caller)");
+
+    struct NFTOwner {
+        address nftContract;
+        uint256 tokenId;
+    }
+
+    bytes32 public constant NFTOWNER_TYPEHASH =
+        keccak256("NFTOwner(address nftContract,uint256 tokenId)");
+
+    // Actions
+
+    struct TransferERC20ToCaller {
+        address token;
+        uint256 amount;
+    }
+
+    bytes32 public constant TRANSFERERC20TOCALLER_TYPEHASH =
+        keccak256("TransferERC20ToCaller(address token,uint256 amount)");
+
+    struct TransferNFTToCaller {
+        address token;
+        uint256 tokenId;
+    }
+
+    bytes32 public constant TRANSFERNFTTOCALLER_TYPEHASH =
+        keccak256("TransferNFTToCaller(address token,uint256 tokenId)");
 
     modifier onlyAvatar() {
         require(msg.sender == avatar, "caller is not the right avatar");
         _;
     }
 
-    // Passing in the leaf hash feels like a leaky abstraction
-    // We can instead pass in just the leaf and redo the abi decoding
-    // The abi decoding for the single test costs roughly 3k gas
-    function isValid(
-        bytes1 format,
-        bytes memory validityData,
-        bytes32 leafHash
+    function isValidState(
+        bytes32 typehash,
+        bytes memory validityData
     ) public view returns (bool) {
-        if (format == hex"00") {
+        // Instead of using the format number approach, use the typehash of the struct to
+        // decode into. This puts some semantic meaning into the structs, which is exposed
+        // to users
+        if (typehash == NONE_TYPEHASH) {
             return true;
         }
-        if (format == hex"01") {
-            if (used[leafHash]) {
+        if (typehash == TIMERANGESECONDS_TYPEHASH) {
+            TimeRangeSeconds memory check = abi.decode(
+                validityData,
+                (TimeRangeSeconds)
+            );
+            if (
+                check.validFromTime <= block.timestamp && // for these use cases, I don't think there's an issue with miners manipulating the block time
+                block.timestamp < check.validToTime
+            ) {
+                return true;
+            } else {
                 return false;
             }
-            (address safeAddress, uint256 validFrom, uint256 validTo) = abi
-                .decode(validityData, (address, uint256, uint256));
-            return
-                validFrom <= block.timestamp &&
-                block.timestamp < validTo && //note: https://ethereum.stackexchange.com/questions/413/can-a-contract-safely-rely-on-block-timestamp
-                safeAddress == target;
         }
-        return false;
+        revert("State check not supported");
     }
 
-    function isValidUser(
-        bytes1 format,
-        bytes memory userData
+    function isValidCaller(
+        bytes32 typehash,
+        bytes memory callerData
     ) public view returns (bool) {
-        if (format == hex"00") {
+        // Instead of using the format number approach, use the typehash of the struct to
+        // decode into.
+        if (typehash == NONE_TYPEHASH) {
             return true;
         }
-        if (format == hex"01") {
-            address caller = abi.decode(userData, (address));
-            return caller == msg.sender;
+        if (typehash == ADDRESS_TYPEHASH) {
+            Address memory check = abi.decode(callerData, (Address));
+            if (check.caller == msg.sender) {
+                return true;
+            } else {
+                return false;
+            }
         }
-        if (format == hex"02") {
-            (address contractAddress, uint256 tokenId) = abi.decode(
-                userData,
-                (address, uint256)
-            );
-            return IERC721(contractAddress).ownerOf(tokenId) == msg.sender;
+        if (typehash == NFTOWNER_TYPEHASH) {
+            NFTOwner memory check = abi.decode(callerData, (NFTOwner));
+            if (
+                IERC721(check.nftContract).ownerOf(check.tokenId) == msg.sender
+            ) {
+                return true;
+            } else {
+                return false;
+            }
         }
-        return false;
+        revert("Caller check not supported");
     }
 
     function transferERC20(
@@ -70,7 +159,7 @@ abstract contract ClaimSettlementBase is Module {
             amount
         );
         bool execTxStatus = exec(token, 0, execTxData, Enum.Operation.Call);
-        require(execTxStatus, "execTx failed");
+        require(execTxStatus, "ERC20 transfer failed");
         return true;
     }
 
@@ -80,56 +169,130 @@ abstract contract ClaimSettlementBase is Module {
         uint256 tokenId
     ) internal returns (bool) {
         bytes memory execTxData = abi.encodeWithSelector(
-            0x23b872dd,
+            0x23b872dd, //method id: transferFrom(address _from, address _to, uint256 _tokenId)
             avatar,
             to,
             tokenId
         );
-        return exec(tokenAddress, 0, execTxData, Enum.Operation.Call);
+        bool execTxStatus = exec(
+            tokenAddress,
+            0,
+            execTxData,
+            Enum.Operation.Call
+        );
+        require(execTxStatus, "ERC721 transfer failed");
+        return true;
     }
 
-    // Security Q - How do we prevent a malicious user from calling this function?
-    // Is internal enough?
     function executeAction(
-        bytes1 format,
+        bytes32 typehash,
         bytes memory actionData,
         bytes memory extraData
     ) internal returns (bool) {
-        if (format == hex"01") {
-            uint256 amount = abi.decode(actionData, (uint256));
-            address payable transferTo = abi.decode(extraData, (address));
-            return exec(transferTo, amount, bytes("0x"), Enum.Operation.Call);
-        }
-        if (format == hex"02") {
-            (uint256 amount, address payable transferTo) = abi.decode(
+        if (typehash == TRANSFERERC20TOCALLER_TYPEHASH) {
+            TransferERC20ToCaller memory action = abi.decode(
                 actionData,
-                (uint256, address)
+                (TransferERC20ToCaller)
             );
-            return exec(transferTo, amount, bytes("0x"), Enum.Operation.Call);
+
+            uint256 minimumTokens = abi.decode(extraData, (uint256));
+            uint256 currentBalance = IERC20(action.token).balanceOf(target);
+            require(
+                currentBalance >= minimumTokens,
+                "Not enough tokens to transfer"
+            );
+            return
+                transferERC20(
+                    action.token,
+                    msg.sender,
+                    Math.min(action.amount, currentBalance)
+                );
         }
-        if (format == hex"03") {
-            (address tokenAddress, uint256 amount) = abi.decode(
+        if (typehash == TRANSFERNFTTOCALLER_TYPEHASH) {
+            TransferNFTToCaller memory action = abi.decode(
                 actionData,
-                (address, uint256)
+                (TransferNFTToCaller)
             );
-            address payable transferTo = abi.decode(extraData, (address));
-            // Security Q - Is this safe?
-            return transferERC20(tokenAddress, transferTo, amount);
+            return transferERC721(action.token, msg.sender, action.tokenId);
         }
-        if (format == hex"04") {
-            (
-                address tokenAddress,
-                uint256 amount,
-                address payable transferTo
-            ) = abi.decode(actionData, (address, uint256, address));
-            // Security Q - Is this safe?
-            return transferERC20(tokenAddress, transferTo, amount);
-        }
-        if (format == hex"05") {
-            (address tokenAddress, address transferTo, uint256 tokenId) = abi
-                .decode(actionData, (address, address, uint256));
-            return transferERC721(tokenAddress, transferTo, tokenId);
-        }
-        return false;
+        revert("Action not supported");
+    }
+
+    function createDigest(
+        bytes32 typehash,
+        bytes32 id,
+        bytes32 validHash,
+        bytes32 callerHash,
+        bytes32 actionHash
+    ) internal view returns (bytes32) {
+        // Note: we need to use `encodePacked` here instead of `encode`.
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                domainSeparator,
+                keccak256(
+                    abi.encode(typehash, id, validHash, callerHash, actionHash)
+                )
+            )
+        );
+        return digest;
+    }
+
+    // Not really liking cramming everything into one arg however I hit the
+    // limits of the stack when trying to pass in all the arguments individually
+    function executeAndCreateDigest(
+        bytes calldata executionData
+    ) internal returns (bytes32) {
+        (
+            bytes32 rootTypehash,
+            bytes32 id,
+            bytes32 validityTypehash,
+            bytes memory validityData,
+            bytes32 callerTypehash,
+            bytes memory callerData,
+            bytes32 actionTypehash,
+            bytes memory actionData,
+            bytes memory extraData
+        ) = abi.decode(
+                executionData,
+                (
+                    bytes32,
+                    bytes32,
+                    bytes32,
+                    bytes,
+                    bytes32,
+                    bytes,
+                    bytes32,
+                    bytes,
+                    bytes
+                )
+            );
+
+        // IDs are single use
+        require(used[id] == false, "Already claimed");
+        used[id] = true;
+
+        // Check requirements like safe address, valid time ranges, etc
+        require(isValidState(validityTypehash, validityData), "Invalid state");
+
+        // Check caller is allowed to perform the action
+        require(
+            isValidCaller(callerTypehash, callerData),
+            "Caller cannot claim"
+        );
+
+        // Execute action
+        require(
+            executeAction(actionTypehash, actionData, extraData),
+            "Action failed"
+        );
+        return
+            createDigest(
+                rootTypehash,
+                id,
+                keccak256(bytes.concat(validityTypehash, validityData)),
+                keccak256(bytes.concat(callerTypehash, callerData)),
+                keccak256(bytes.concat(actionTypehash, actionData))
+            );
     }
 }
