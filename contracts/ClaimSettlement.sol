@@ -4,9 +4,16 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@gnosis.pm/zodiac/contracts/core/Module.sol";
 import "./ClaimSettlementBase.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract ClaimSettlement is ClaimSettlementBase {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     address public keySigner;
+    EnumerableSet.AddressSet private validators;
+
+    event ValidatorAdded(address validator);
+    event ValidatorRemoved(address validator);
 
     constructor(address _owner, address _avatar, address _target) {
         bytes memory initParams = abi.encode(_owner, _avatar, _target);
@@ -18,6 +25,24 @@ contract ClaimSettlement is ClaimSettlementBase {
             verifyingContract: address(this) // Potentially this should be the safe address?
         });
         domainSeparator = hash(domain);
+    }
+
+    function getValidators() external view returns (address[] memory) {
+        return validators.values();
+    }
+
+    function isValidator(address validator) external view returns (bool) {
+        return validators.contains(validator);
+    }
+
+    function addValidator(address validator) external onlyAvatar {
+        validators.add(validator);
+        emit ValidatorAdded(validator);
+    }
+
+    function removeValidator(address validator) external onlyAvatar {
+        validators.remove(validator);
+        emit ValidatorRemoved(validator);
     }
 
     function hash(
@@ -54,14 +79,9 @@ contract ClaimSettlement is ClaimSettlementBase {
         bytes calldata signature,
         bytes calldata everything
     ) public {
-        // Check it's signed
         bytes32 digest = executeAndCreateDigest(everything);
 
-        // Check signed at the end
-        require(
-            keySigner == ECDSA.recover(digest, signature),
-            "Invalid signature"
-        );
-        // emit event
+        address signer = ECDSA.recover(digest, signature);
+        require(validators.contains(signer), "Invalid signature");
     }
 }

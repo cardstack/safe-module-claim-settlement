@@ -84,6 +84,22 @@ describe("claimSettlement", async () => {
       validator = fixture.wallets.validator;
       deployer = fixture.wallets.deployer;
       startFrom = await time.latest();
+      const addValidatorData = claimSettlement.interface.encodeFunctionData(
+        "addValidator",
+        [validator.address]
+      );
+      await avatar.execTransaction(
+        claimSettlement.address,
+        0,
+        addValidatorData,
+        0,
+        0,
+        0,
+        0,
+        AddressZero,
+        AddressZero,
+        "0x"
+      );
     });
     describe("ERC20 transfers", async () => {
       beforeEach(async () => {
@@ -294,6 +310,119 @@ describe("claimSettlement", async () => {
         await claimSettlement.connect(payee1).signedExecute(signature, encoded);
         expect(await nft.ownerOf(1)).to.equal(payee1.address);
       });
+    });
+  });
+  describe("addValidator()", async () => {
+    let avatar: Contract,
+      claimSettlement: Contract,
+      validator: SignerWithAddress,
+      payee1: SignerWithAddress;
+    beforeEach(async () => {
+      const fixture = await loadFixture(setupFixture);
+      avatar = fixture.avatar;
+      claimSettlement = fixture.modules.claimSettlement;
+      validator = fixture.wallets.validator;
+      payee1 = fixture.wallets.payee1;
+    });
+    it("can add validator", async () => {
+      const data = claimSettlement.interface.encodeFunctionData(
+        "addValidator",
+        [validator.address]
+      );
+      await expect(
+        await avatar.execTransaction(
+          claimSettlement.address,
+          0,
+          data,
+          0,
+          0,
+          0,
+          0,
+          AddressZero,
+          AddressZero,
+          "0x"
+        )
+      )
+        .to.emit(claimSettlement, "ValidatorAdded")
+        .withArgs(validator.address);
+      expect(await claimSettlement.getValidators()).to.have.members([
+        validator.address,
+      ]);
+      expect(
+        await claimSettlement.isValidator(validator.address)
+      ).to.have.equal(true);
+    });
+    it("non-avatar cannot add validator", async () => {
+      await expect(
+        claimSettlement.connect(payee1).addValidator(validator.address)
+      ).to.be.revertedWith("caller is not the right avatar");
+      expect(
+        await claimSettlement.isValidator(validator.address)
+      ).to.have.equal(false);
+    });
+  });
+  describe("removeValidator()", async () => {
+    let avatar: Contract,
+      claimSettlement: Contract,
+      validator: SignerWithAddress,
+      payee1: SignerWithAddress;
+    beforeEach(async () => {
+      const fixture = await loadFixture(setupFixture);
+      avatar = fixture.avatar;
+      claimSettlement = fixture.modules.claimSettlement;
+      validator = fixture.wallets.validator;
+      payee1 = fixture.wallets.payee1;
+      const data = claimSettlement.interface.encodeFunctionData(
+        "addValidator",
+        [validator.address]
+      );
+      await avatar.execTransaction(
+        claimSettlement.address,
+        0,
+        data,
+        0,
+        0,
+        0,
+        0,
+        AddressZero,
+        AddressZero,
+        "0x"
+      );
+    });
+    it("can remove validator", async () => {
+      const data = claimSettlement.interface.encodeFunctionData(
+        "removeValidator",
+        [validator.address]
+      );
+      await expect(
+        await avatar.execTransaction(
+          claimSettlement.address,
+          0,
+          data,
+          0,
+          0,
+          0,
+          0,
+          AddressZero,
+          AddressZero,
+          "0x"
+        )
+      )
+        .to.emit(claimSettlement, "ValidatorRemoved")
+        .withArgs(validator.address);
+      expect(await claimSettlement.getValidators()).to.be.an("array").that.is
+        .empty;
+      expect(
+        await claimSettlement.isValidator(validator.address)
+      ).to.have.equal(false);
+    });
+    it("non-avatar cannot remove validator", async () => {
+      await expect(
+        claimSettlement.connect(payee1).removeValidator(validator.address)
+      ).to.be.revertedWith("caller is not the right avatar");
+      expect(
+        await claimSettlement.isValidator(validator.address)
+      ).to.have.equal(true);
     });
   });
 });
