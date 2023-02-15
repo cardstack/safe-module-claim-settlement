@@ -11,6 +11,7 @@ import type { HttpNetworkUserConfig } from "hardhat/types";
 import yargs from "yargs";
 import "@cardstack/upgrade-manager";
 import { AddressOne } from "@gnosis.pm/safe-contracts";
+import "./tasks";
 
 const argv = yargs
   .option("network", {
