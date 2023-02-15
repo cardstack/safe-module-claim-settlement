@@ -119,6 +119,7 @@ abstract contract ClaimSettlementBase is Module {
     }
 
     function isValidCaller(
+        address caller,
         bytes32 typehash,
         bytes memory callerData
     ) public view returns (bool) {
@@ -129,7 +130,7 @@ abstract contract ClaimSettlementBase is Module {
         }
         if (typehash == ADDRESS_TYPEHASH) {
             Address memory check = abi.decode(callerData, (Address));
-            if (check.caller == _msgSender()) {
+            if (check.caller == caller) {
                 return true;
             } else {
                 return false;
@@ -137,10 +138,7 @@ abstract contract ClaimSettlementBase is Module {
         }
         if (typehash == NFTOWNER_TYPEHASH) {
             NFTOwner memory check = abi.decode(callerData, (NFTOwner));
-            if (
-                IERC721(check.nftContract).ownerOf(check.tokenId) ==
-                _msgSender()
-            ) {
+            if (IERC721(check.nftContract).ownerOf(check.tokenId) == caller) {
                 return true;
             } else {
                 return false;
@@ -278,7 +276,7 @@ abstract contract ClaimSettlementBase is Module {
 
         // Check caller is allowed to perform the action
         require(
-            isValidCaller(callerTypehash, callerData),
+            isValidCaller(_msgSender(), callerTypehash, callerData),
             "Caller cannot claim"
         );
 
