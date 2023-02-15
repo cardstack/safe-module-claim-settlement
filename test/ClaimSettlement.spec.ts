@@ -25,7 +25,7 @@ describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
   async function setupFixture() {
     const [deployer, validator, payee1, payee2] = await ethers.getSigners();
-    const { token, gasToken, nft } = await setupTokens();
+    const { token, gasToken, nft, staking } = await setupTokens();
     const { avatar, tx } = await setupAvatar();
     const ClaimSettlement = await ethers.getContractFactory("ClaimSettlement", {
       signer: deployer,
@@ -49,6 +49,7 @@ describe("claimSettlement", async () => {
         nft,
         token,
         gasToken,
+        staking,
       },
       avatar,
       tx,
@@ -62,6 +63,7 @@ describe("claimSettlement", async () => {
     let avatar: Contract,
       token: Contract,
       nft: Contract,
+      staking: Contract,
       claimSettlement: Contract,
       deployer: SignerWithAddress,
       payee1: SignerWithAddress,
@@ -78,6 +80,7 @@ describe("claimSettlement", async () => {
       avatar = fixture.avatar;
       token = fixture.assets.token;
       nft = fixture.assets.nft;
+      staking = fixture.assets.staking;
       claimSettlement = fixture.modules.claimSettlement;
       payee1 = fixture.wallets.payee1;
       payee2 = fixture.wallets.payee2;
@@ -187,7 +190,51 @@ describe("claimSettlement", async () => {
           claimSettlement.connect(payee1).signedExecute(signature, encoded)
         ).to.be.revertedWith("Not authorized");
       });
-
+      it("Transfer to account holding NFT", async () => {
+        await staking.connect(payee1).register(payee1.address, payee2.address);
+        expect(await staking.ownerOf(BigNumber.from(payee1.address))).to.equal(
+          payee2.address
+        );
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(staking.address, BigNumber.from(payee1.address)),
+          new TransferERC20ToCaller(token.address, transferAmount)
+        );
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
+        await claimSettlement.connect(payee2).signedExecute(signature, encoded);
+        expect(await staking.ownerOf(BigNumber.from(payee1.address))).to.equal(
+          payee2.address
+        );
+        expect(await token.balanceOf(payee2.address)).to.equal(transferAmount);
+        expect(await token.balanceOf(avatar.address)).to.equal(
+          mintAmount.sub(transferAmount)
+        );
+      });
+      it("Transfer to registered account", async () => {
+        await staking.connect(payee1).register(payee1.address, payee1.address);
+        const nftClaim = new Claim(
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+          await getChainId(),
+          claimSettlement.address,
+          new TimeRangeSeconds(startFrom, startFrom + 100),
+          new NFTOwner(staking.address, BigNumber.from(payee1.address)),
+          new TransferERC20ToCaller(token.address, transferAmount)
+        );
+        const signature = await nftClaim.sign(validator);
+        const encoded = nftClaim.abiEncode(["uint256"], [100000]);
+        await claimSettlement.connect(payee1).signedExecute(signature, encoded);
+        expect(await staking.ownerOf(BigNumber.from(payee1.address))).to.equal(
+          payee1.address
+        );
+        expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
+        expect(await token.balanceOf(avatar.address)).to.equal(
+          mintAmount.sub(transferAmount)
+        );
+      });
       it("can transfer if caller has an nft", async () => {
         await nft.mint(payee1.address, 1);
         const nftClaim = new Claim(
@@ -202,6 +249,10 @@ describe("claimSettlement", async () => {
         const encoded = nftClaim.abiEncode(["uint256"], [100000]);
         await claimSettlement.connect(payee1).signedExecute(signature, encoded);
         expect(await nft.ownerOf(1)).to.equal(payee1.address);
+        expect(await token.balanceOf(payee1.address)).to.equal(transferAmount);
+        expect(await token.balanceOf(avatar.address)).to.equal(
+          mintAmount.sub(transferAmount)
+        );
       });
       it("cannot transfer if caller does not have an nft", async () => {
         // Give the NFT to someone else

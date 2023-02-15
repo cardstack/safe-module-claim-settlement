@@ -87,7 +87,7 @@ abstract contract ClaimSettlementBase is Module {
         keccak256("TransferNFTToCaller(address token,uint256 tokenId)");
 
     modifier onlyAvatar() {
-        require(msg.sender == avatar, "caller is not the right avatar");
+        require(_msgSender() == avatar, "caller is not the right avatar");
         _;
     }
 
@@ -129,7 +129,7 @@ abstract contract ClaimSettlementBase is Module {
         }
         if (typehash == ADDRESS_TYPEHASH) {
             Address memory check = abi.decode(callerData, (Address));
-            if (check.caller == msg.sender) {
+            if (check.caller == _msgSender()) {
                 return true;
             } else {
                 return false;
@@ -138,7 +138,8 @@ abstract contract ClaimSettlementBase is Module {
         if (typehash == NFTOWNER_TYPEHASH) {
             NFTOwner memory check = abi.decode(callerData, (NFTOwner));
             if (
-                IERC721(check.nftContract).ownerOf(check.tokenId) == msg.sender
+                IERC721(check.nftContract).ownerOf(check.tokenId) ==
+                _msgSender()
             ) {
                 return true;
             } else {
@@ -204,7 +205,7 @@ abstract contract ClaimSettlementBase is Module {
             return
                 transferERC20(
                     action.token,
-                    msg.sender,
+                    _msgSender(),
                     Math.min(action.amount, currentBalance)
                 );
         }
@@ -213,7 +214,7 @@ abstract contract ClaimSettlementBase is Module {
                 actionData,
                 (TransferNFTToCaller)
             );
-            return transferERC721(action.token, msg.sender, action.tokenId);
+            return transferERC721(action.token, _msgSender(), action.tokenId);
         }
         revert("Action not supported");
     }
