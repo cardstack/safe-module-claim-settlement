@@ -24,10 +24,7 @@ import {
   ClaimSettlement,
   TestAvatar,
   ClaimSettlement__factory,
-  ClaimSettlementBase__factory,
 } from "../typechain-types";
-import { AddressOne } from "@gnosis.pm/safe-contracts";
-import { deploy } from "@openzeppelin/hardhat-upgrades/dist/utils";
 
 describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
