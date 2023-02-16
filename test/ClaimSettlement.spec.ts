@@ -20,6 +20,14 @@ import {
 import { BigNumber, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { AddressZero } from "@ethersproject/constants";
+import {
+  ClaimSettlement,
+  TestAvatar,
+  ClaimSettlement__factory,
+  ClaimSettlementBase__factory,
+} from "../typechain-types";
+import { AddressOne } from "@gnosis.pm/safe-contracts";
+import { deploy } from "@openzeppelin/hardhat-upgrades/dist/utils";
 
 describe("claimSettlement", async () => {
   const mintAmount = BigNumber.from(ethers.utils.parseUnits("10", "ether"));
@@ -57,6 +65,70 @@ describe("claimSettlement", async () => {
       },
     };
   }
+
+  describe("setUp()", async () => {
+    let avatar: TestAvatar;
+    let deployer: SignerWithAddress;
+    let claimSettlement: ClaimSettlement;
+    let ClaimSettlement: ClaimSettlement__factory;
+    const abiCoder = new ethers.utils.AbiCoder();
+    beforeEach(async () => {
+      avatar = (await setupAvatar()).avatar;
+      deployer = (await ethers.getSigners())[0];
+      ClaimSettlement = await ethers.getContractFactory("ClaimSettlement", {
+        signer: deployer,
+      });
+    });
+    it("throws if module has already been initialized", async () => {
+      claimSettlement = await ClaimSettlement.deploy(
+        deployer.address,
+        avatar.address,
+        avatar.address
+      );
+      const initializeParams = abiCoder.encode(
+        ["address", "address", "address"],
+        [deployer.address, avatar.address, avatar.address]
+      );
+      await expect(claimSettlement.setUp(initializeParams)).to.be.revertedWith(
+        "Initializable: contract is already initialized"
+      );
+    });
+
+    it("throws if owner is zero address", async () => {
+      await expect(
+        ClaimSettlement.deploy(AddressZero, avatar.address, avatar.address)
+      ).to.be.revertedWith("Ownable: new owner is the zero address");
+    });
+
+    it("throws if avatar is zero address", async () => {
+      await expect(
+        ClaimSettlement.deploy(avatar.address, AddressZero, avatar.address)
+      ).to.be.revertedWith("Avatar can not be zero address");
+    });
+
+    it("throws if target is zero address", async () => {
+      await expect(
+        ClaimSettlement.deploy(deployer.address, avatar.address, AddressZero)
+      ).to.be.revertedWith("Target can not be zero address");
+    });
+
+    it("should emit event because of successful set up", async () => {
+      const claimSettlementModule = await ClaimSettlement.deploy(
+        deployer.address,
+        avatar.address,
+        avatar.address
+      );
+      await claimSettlementModule.deployed();
+      await expect(claimSettlementModule.deployTransaction)
+        .to.emit(claimSettlementModule, "ClaimSettlementSetup")
+        .withArgs(
+          deployer.address,
+          deployer.address,
+          avatar.address,
+          claimSettlementModule.address
+        );
+    });
+  });
 
   describe("signedExecute()", async () => {
     let avatar: Contract,
