@@ -11,6 +11,12 @@ contract ClaimSettlement is ClaimSettlementBase {
 
     EnumerableSet.AddressSet private validators;
 
+    event ClaimSettlementSetup(
+        address indexed initiator,
+        address indexed owner,
+        address indexed avatar,
+        address moduleAddress
+    );
     event ValidatorAdded(address validator);
     event ValidatorRemoved(address validator);
 
@@ -71,6 +77,8 @@ contract ClaimSettlement is ClaimSettlementBase {
         target = _target;
 
         transferOwnership(_owner);
+
+        emit ClaimSettlementSetup(msg.sender, _owner, _avatar, address(this));
     }
 
     function signedExecute(
