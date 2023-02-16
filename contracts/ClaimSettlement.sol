@@ -78,7 +78,7 @@ contract ClaimSettlement is ClaimSettlementBase {
 
         transferOwnership(_owner);
 
-        emit ClaimSettlementSetup(msg.sender, _owner, _avatar, address(this));
+        emit ClaimSettlementSetup(_msgSender(), _owner, _avatar, address(this));
     }
 
     function signedExecute(
