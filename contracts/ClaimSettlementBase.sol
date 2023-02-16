@@ -242,7 +242,7 @@ abstract contract ClaimSettlementBase is Module {
     // limits of the stack when trying to pass in all the arguments individually
     function executeAndCreateDigest(
         bytes calldata executionData
-    ) internal returns (bytes32) {
+    ) internal returns (bytes32, bytes32) {
         (
             bytes32 rootTypehash,
             bytes32 id,
@@ -286,13 +286,15 @@ abstract contract ClaimSettlementBase is Module {
             executeAction(actionTypehash, actionData, extraData),
             "Action failed"
         );
-        return
+        return (
             createDigest(
                 rootTypehash,
                 id,
                 keccak256(bytes.concat(validityTypehash, validityData)),
                 keccak256(bytes.concat(callerTypehash, callerData)),
                 keccak256(bytes.concat(actionTypehash, actionData))
-            );
+            ),
+            id
+        );
     }
 }
