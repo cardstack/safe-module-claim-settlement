@@ -196,7 +196,7 @@ abstract contract ClaimSettlementBase is Module {
             );
 
             uint256 minimumTokens = abi.decode(extraData, (uint256));
-            uint256 currentBalance = IERC20(action.token).balanceOf(target);
+            uint256 currentBalance = IERC20(action.token).balanceOf(avatar);
             require(
                 currentBalance >= minimumTokens,
                 "Not enough tokens to transfer"
