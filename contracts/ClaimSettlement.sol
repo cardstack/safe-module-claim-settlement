@@ -9,9 +9,14 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 contract ClaimSettlement is ClaimSettlementBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    address public keySigner;
     EnumerableSet.AddressSet private validators;
 
+    event ClaimSettlementSetup(
+        address indexed initiator,
+        address indexed owner,
+        address indexed avatar,
+        address moduleAddress
+    );
     event ValidatorAdded(address validator);
     event ValidatorRemoved(address validator);
 
@@ -68,11 +73,12 @@ contract ClaimSettlement is ClaimSettlementBase {
         __Ownable_init();
         require(_avatar != address(0), "Avatar can not be zero address");
         require(_target != address(0), "Target can not be zero address");
-        keySigner = _owner;
         avatar = _avatar;
         target = _target;
 
         transferOwnership(_owner);
+
+        emit ClaimSettlementSetup(_msgSender(), _owner, _avatar, address(this));
     }
 
     function signedExecute(
