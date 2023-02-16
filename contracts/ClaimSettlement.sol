@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 contract ClaimSettlement is ClaimSettlementBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    address public keySigner;
     EnumerableSet.AddressSet private validators;
 
     event ValidatorAdded(address validator);
@@ -68,7 +67,6 @@ contract ClaimSettlement is ClaimSettlementBase {
         __Ownable_init();
         require(_avatar != address(0), "Avatar can not be zero address");
         require(_target != address(0), "Target can not be zero address");
-        keySigner = _owner;
         avatar = _avatar;
         target = _target;
 
