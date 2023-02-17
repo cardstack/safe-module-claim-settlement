@@ -11,6 +11,7 @@ abstract contract ClaimSettlementBase is Module {
 
     bytes32 public domainSeparator;
     EIP712Domain public domain;
+    string public configuration;
 
     struct EIP712Domain {
         string name;
@@ -86,9 +87,16 @@ abstract contract ClaimSettlementBase is Module {
     bytes32 public constant TRANSFERNFTTOCALLER_TYPEHASH =
         keccak256("TransferNFTToCaller(address token,uint256 tokenId)");
 
+    event ConfigurationChanged(string configuration);
+
     modifier onlyAvatar() {
         require(msg.sender == avatar, "caller is not the right avatar");
         _;
+    }
+
+    function setConfiguration(string memory _configuration) public onlyAvatar {
+        configuration = _configuration;
+        emit ConfigurationChanged(_configuration);
     }
 
     function isValidState(
