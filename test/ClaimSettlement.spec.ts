@@ -545,4 +545,42 @@ describe("claimSettlement", async () => {
       ).to.have.equal(true);
     });
   });
+  describe("setConfiguration()", async () => {
+    let avatar: Contract, claimSettlement: Contract, payee1: SignerWithAddress;
+    beforeEach(async () => {
+      const fixture = await loadFixture(setupFixture);
+      avatar = fixture.avatar;
+      claimSettlement = fixture.modules.claimSettlement;
+      payee1 = fixture.wallets.payee1;
+    });
+    it("avatar can add configuration", async () => {
+      const did = "did:1234";
+      const data = claimSettlement.interface.encodeFunctionData(
+        "setConfiguration",
+        [did]
+      );
+      await expect(
+        await avatar.execTransaction(
+          claimSettlement.address,
+          0,
+          data,
+          0,
+          0,
+          0,
+          0,
+          AddressZero,
+          AddressZero,
+          "0x"
+        )
+      )
+        .to.emit(claimSettlement, "ConfigurationChanged")
+        .withArgs(did);
+      expect(await claimSettlement.configuration()).to.equal(did);
+    });
+    it("non-avatar cannot add configuration", async () => {
+      await expect(
+        claimSettlement.connect(payee1).setConfiguration("did:1234")
+      ).to.be.revertedWith("caller is not the right avatar");
+    });
+  });
 });
