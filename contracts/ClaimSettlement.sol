@@ -19,6 +19,7 @@ contract ClaimSettlement is ClaimSettlementBase {
     );
     event ValidatorAdded(address validator);
     event ValidatorRemoved(address validator);
+    event Claimed(bytes32 indexed id, bytes32 indexed digest, bytes fullData);
 
     constructor(address _owner, address _avatar, address _target) {
         bytes memory initParams = abi.encode(_owner, _avatar, _target);
@@ -83,11 +84,12 @@ contract ClaimSettlement is ClaimSettlementBase {
 
     function signedExecute(
         bytes calldata signature,
-        bytes calldata everything
+        bytes calldata fullData
     ) public {
-        bytes32 digest = executeAndCreateDigest(everything);
+        (bytes32 digest, bytes32 id) = executeAndCreateDigest(fullData);
 
         address signer = ECDSA.recover(digest, signature);
         require(validators.contains(signer), "Invalid signature");
+        emit Claimed(id, digest, fullData);
     }
 }
