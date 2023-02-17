@@ -32,7 +32,7 @@ There are two types of state check, time range and block range.
 
 The claim is valid if `validFromBlock <= block.number < validToBlock`.
 
-    TimeRangeTimestamps(uint256 validFromTimestamp,uint256 validToTimestamp)
+    TimeRangeSeconds(uint256 validFromTimestamp,uint256 validToTimestamp)
 
 The claim is valid if `validFromTimestamp <= block.timestamp < validToTimestamp`, where the timestamps are seconds since the Unix epoch.
 
