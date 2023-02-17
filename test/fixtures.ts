@@ -13,7 +13,14 @@ export const setupTokens = async () => {
     signer: deployer,
   });
   const nft = await Nft.deploy("TestNft", "TestNft");
-  return { token, gasToken, nft };
+  const Staking = await ethers.getContractFactory("AccountRegistration", {
+    signer: deployer,
+  });
+  const staking = await Staking.deploy(
+    "AccountRegistration",
+    "AccountRegistration"
+  );
+  return { token, gasToken, nft, staking };
 };
 export const setupAvatar = async (owner?: SignerWithAddress) => {
   const avatarFactory = await ethers.getContractFactory("TestAvatar", {
