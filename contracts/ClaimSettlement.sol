@@ -24,13 +24,6 @@ contract ClaimSettlement is ClaimSettlementBase {
     constructor(address _owner, address _avatar, address _target) {
         bytes memory initParams = abi.encode(_owner, _avatar, _target);
         setUp(initParams);
-        domain = EIP712Domain({
-            name: "CardstackClaimSettlementModule",
-            version: "1", // potentially this should be either the module or safe address
-            chainId: block.chainid, // Set to real chain ID
-            verifyingContract: address(this) // Potentially this should be the safe address?
-        });
-        domainSeparator = hash(domain);
     }
 
     function getValidators() external view returns (address[] memory) {
@@ -67,6 +60,13 @@ contract ClaimSettlement is ClaimSettlementBase {
     }
 
     function setUp(bytes memory initParams) public override initializer {
+        domain = EIP712Domain({
+            name: "CardstackClaimSettlementModule",
+            version: "1", // potentially this should be either the module or safe address
+            chainId: block.chainid, // Set to real chain ID
+            verifyingContract: address(this) // Potentially this should be the safe address?
+        });
+        domainSeparator = hash(domain);
         (address _owner, address _avatar, address _target) = abi.decode(
             initParams,
             (address, address, address)
