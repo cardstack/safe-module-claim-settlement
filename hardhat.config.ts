@@ -56,6 +56,11 @@ export default {
   upgradeManager: {
     contracts: [
       {
+        id: "AccountRegistration",
+        abstract: true,
+        constructorArgs: ["AccountRegistration", "AccountRegistration"],
+      },
+      {
         id: "ClaimSettlement",
         abstract: true,
         determinitstic: true,
