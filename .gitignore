@@ -28,3 +28,6 @@ artifacts
 .openzeppelin
 
 .DS_Store
+
+.vscode
+scripts
