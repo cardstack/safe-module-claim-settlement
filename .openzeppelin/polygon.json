@@ -1,0 +1,9 @@
+{
+  "manifestVersion": "3.2",
+  "admin": {
+    "address": "0x6d84a734e2cD7Ab56bfA0E7c89F931fB0D35867d",
+    "txHash": "0x1235c0f3cf8b91e9d2a9410e70efdf186a2d82bc93e45f48d2e3fb2c3daf7a69"
+  },
+  "proxies": [],
+  "impls": {}
+}
